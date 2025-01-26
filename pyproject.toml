@@ -16,6 +16,9 @@ pymongo = "^4.10.1"
 bson = "^0.5.10"
 python-dateutil = "^2.9.0.post0"
 configparser = "^7.1.0"
+yfinance = "^0.2.52"
+ratelimit = "^2.2.1"
+google = "^3.0.0"
 
 
 [tool.poetry.group.dev.dependencies]
