@@ -118,3 +118,8 @@ cython_debug/
 
 ibkr-load-data-config.cfg
 backups/
+*.db
+config.ini
+.env
+logs/
+.env
