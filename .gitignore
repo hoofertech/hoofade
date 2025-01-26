@@ -115,3 +115,6 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+ibkr-load-data-config.cfg
+backups/
