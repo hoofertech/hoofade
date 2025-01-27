@@ -1,10 +1,13 @@
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from src.models.trade import Trade
 from src.models.message import Message
 from src.sources.base import TradeSource
 from src.sinks.base import MessageSink
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class MockTradeSource(TradeSource):
@@ -18,9 +21,7 @@ class MockTradeSource(TradeSource):
         return True
 
     def get_recent_trades(self, since: datetime):
-        for trade in self.trades:
-            if trade.timestamp >= since:
-                yield trade
+        return [t for t in self.trades if t.timestamp >= since]
 
     def disconnect(self) -> None:
         self.connected = False
@@ -48,32 +49,6 @@ class MockMessageSink(MessageSink):
 
 
 @pytest.fixture
-def sample_trade():
-    return Trade(
-        symbol="AAPL",
-        quantity=Decimal("100"),
-        price=Decimal("150.25"),
-        side="BUY",
-        timestamp=datetime(2024, 1, 1, 12, 0),
-        source_id="test-source",
-        trade_id="test-trade-1",
-    )
-
-
-@pytest.fixture
-def matching_trade():
-    return Trade(
-        symbol="AAPL",
-        quantity=Decimal("100"),
-        price=Decimal("160.25"),
-        side="SELL",
-        timestamp=datetime(2024, 1, 1, 14, 30),
-        source_id="test-source",
-        trade_id="test-trade-2",
-    )
-
-
-@pytest.fixture
 def mock_source(sample_trade):
     return MockTradeSource("test-source", [sample_trade])
 
@@ -81,3 +56,40 @@ def mock_source(sample_trade):
 @pytest.fixture
 def mock_sink():
     return MockMessageSink("test-sink")
+
+
+@pytest.fixture
+def test_timestamp():
+    """Fixed timestamp for testing"""
+    return datetime(2024, 3, 20, 14, 30, 0, tzinfo=timezone.utc)
+
+
+@pytest.fixture
+def sample_trade(test_timestamp):
+    logger.info(f"type(test_timestamp): {test_timestamp}")
+    """Sample trade with fixed timestamp"""
+    return Trade(
+        symbol="AAPL",
+        quantity=100,
+        price=Decimal("150.25"),
+        side="BUY",
+        timestamp=test_timestamp,
+        source_id="test-source",
+        trade_id="test-exec-id-1",
+    )
+
+
+@pytest.fixture
+def matching_trade(test_timestamp):
+    """Matching trade with fixed timestamp + 2.5 hours"""
+    later_timestamp = test_timestamp + timedelta(hours=2, minutes=30)
+    logger.info(f"type(later_timestamp): {later_timestamp}")
+    return Trade(
+        symbol="AAPL",
+        quantity=-100,
+        price=Decimal("160.25"),
+        side="SELL",
+        timestamp=later_timestamp,
+        source_id="test-source",
+        trade_id="test-exec-id-2",
+    )

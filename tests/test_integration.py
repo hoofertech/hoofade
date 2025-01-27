@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from src.formatters.trade import TradeFormatter
 
 
-def test_end_to_end_flow(sample_trade, mock_source, mock_sink):
+def test_end_to_end_flow(test_timestamp, mock_source, mock_sink):
     # Setup
     formatter = TradeFormatter()
-    since = datetime.now() - timedelta(minutes=15)
+    since = test_timestamp - timedelta(minutes=15)
 
     # Process trade from source
     trades = list(mock_source.get_recent_trades(since))

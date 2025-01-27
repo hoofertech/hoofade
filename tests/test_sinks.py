@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from src.sinks.twitter import TwitterSink
 from src.models.message import Message
 from unittest.mock import Mock, patch
@@ -22,8 +22,9 @@ def twitter_sink():
 
 def test_twitter_sink_rate_limits(twitter_sink):
     # Test daily limit
+    now = datetime.now(timezone.utc)
     for _ in range(twitter_sink.MAX_TWEETS_PER_DAY):
-        twitter_sink.daily_messages.append(datetime.now())
+        twitter_sink.daily_messages.append(now)
 
     assert not twitter_sink.can_publish()
 
@@ -36,7 +37,9 @@ def test_twitter_sink_publish(twitter_sink):
         mock_response.data = {"id": "123456"}
         mock_client.create_tweet.return_value = mock_response
 
-        message = Message(content="Test message", timestamp=datetime.now(), metadata={})
+        message = Message(
+            content="Test message", timestamp=datetime.now(timezone.utc), metadata={}
+        )
 
         assert twitter_sink.publish(message)
         mock_client.create_tweet.assert_called_once_with(text="Test message")
@@ -47,6 +50,8 @@ def test_twitter_sink_publish_failure(twitter_sink):
         twitter_sink.client = mock_client
         mock_client.create_tweet.side_effect = Exception("API Error")
 
-        message = Message(content="Test message", timestamp=datetime.now(), metadata={})
+        message = Message(
+            content="Test message", timestamp=datetime.now(timezone.utc), metadata={}
+        )
 
         assert not twitter_sink.publish(message)

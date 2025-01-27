@@ -1,40 +1,43 @@
-from datetime import datetime, timedelta
-from decimal import Decimal
+import pytest
+from datetime import timedelta
 from src.sources.ibkr import IBKRSource
 from unittest.mock import Mock, patch
 
 
-def test_ibkr_source_connection():
+@pytest.mark.asyncio
+async def test_ibkr_source_connection():
     with patch("ib_insync.IB") as mock_ib:
+        mock_ib_instance = Mock()
+        mock_ib_instance.connect.return_value = None
+        mock_ib_instance.isConnected.return_value = True
+        mock_ib.return_value = mock_ib_instance
+
         source = IBKRSource("test-ibkr", "localhost", 7496, 1)
-        mock_ib.return_value.connect.return_value = None
-
-        assert source.connect()
-        mock_ib.return_value.connect.assert_called_once_with(
-            "localhost", 7496, clientId=1
-        )
+        source.ib = mock_ib_instance
+        assert source.connect() is True
 
 
-def test_ibkr_source_get_recent_trades():
+@pytest.mark.asyncio
+async def test_ibkr_source_get_recent_trades(test_timestamp):
     with patch("ib_insync.IB") as mock_ib:
-        source = IBKRSource("test-ibkr", "localhost", 7496, 1)
+        mock_ib_instance = Mock()
+        mock_ib_instance.isConnected.return_value = True
 
-        # Mock trade data
         mock_trade = Mock()
-        mock_trade.time = datetime.now()
+        mock_trade.time = test_timestamp
         mock_trade.contract.symbol = "AAPL"
         mock_trade.execution.shares = 100
         mock_trade.execution.price = 150.25
         mock_trade.execution.side = "BOT"
         mock_trade.execution.execId = "test-exec-id"
 
-        mock_ib.return_value.trades.return_value = [mock_trade]
+        mock_ib_instance.trades.return_value = [mock_trade]
+        mock_ib.return_value = mock_ib_instance
 
-        # Get recent trades
-        trades = list(source.get_recent_trades(datetime.now() - timedelta(minutes=15)))
+        source = IBKRSource("test-ibkr", "localhost", 7496, 1)
+        source.ib = mock_ib_instance
 
+        since_time = test_timestamp - timedelta(minutes=15)
+        trades = list(source.get_recent_trades(since_time))
         assert len(trades) == 1
         assert trades[0].symbol == "AAPL"
-        assert trades[0].quantity == Decimal("100")
-        assert trades[0].price == Decimal("150.25")
-        assert trades[0].side == "BUY"

@@ -1,7 +1,7 @@
 import time
 import schedule
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict
 from sqlalchemy.orm import Session
 
@@ -56,7 +56,7 @@ class TradePublisher:
 
     def process_trades(self):
         try:
-            since = datetime.now() - timedelta(minutes=15)
+            since = datetime.now(timezone.utc) - timedelta(minutes=15)
 
             for source in self.sources.values():
                 for trade in source.get_recent_trades(since):

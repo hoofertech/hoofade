@@ -1,6 +1,6 @@
 import tweepy
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import deque
 from src.models.message import Message
 from src.sinks.base import MessageSink
@@ -28,7 +28,7 @@ class TwitterSink(MessageSink):
             return False
 
     def can_publish(self) -> bool:
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         self._clean_message_history(now)
         return (
             len(self.daily_messages) < self.MAX_TWEETS_PER_DAY
@@ -42,7 +42,7 @@ class TwitterSink(MessageSink):
         try:
             response = self.client.create_tweet(text=message.content)
             if response.data:
-                now = datetime.now()
+                now = datetime.now(timezone.utc)
                 self.daily_messages.append(now)
                 self.monthly_messages.append(now)
                 return True

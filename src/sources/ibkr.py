@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Iterator
 import logging
-from ib_insync import IB
+import asyncio
 from src.models.trade import Trade
 from src.sources.base import TradeSource
 from decimal import Decimal
@@ -15,6 +15,15 @@ class IBKRSource(TradeSource):
         self.host = host
         self.port = port
         self.client_id = client_id
+        # Set up event loop
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+
+        from ib_insync import IB
+
         self.ib = IB()
 
     def connect(self) -> bool:

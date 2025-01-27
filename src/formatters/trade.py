@@ -6,7 +6,13 @@ from src.formatters.base import MessageFormatter
 
 class TradeFormatter(MessageFormatter):
     def __init__(self):
-        self.emoji_map = {"BUY": "📈", "SELL": "📉", "PROFIT": "🎯", "LOSS": "📊"}
+        self.emoji_map = {
+            "BUY": "📈",
+            "SELL": "📉",
+            "PROFIT": "🎯",
+            "LOSS": "📊",
+            "BOT": "🤖",
+        }
 
     def format_trade(
         self, trade: Trade, matching_trade: Optional[Trade] = None
