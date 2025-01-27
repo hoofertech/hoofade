@@ -36,12 +36,12 @@ class TwitterSink(MessageSink):
         )
 
     def publish(self, message: Message) -> bool:
-        if not self.can_publish():
+        if not self.can_publish() or not self.client:
             return False
 
         try:
             response = self.client.create_tweet(text=message.content)
-            if response.data:
+            if response and getattr(response, "data", None):
                 now = datetime.now(timezone.utc)
                 self.daily_messages.append(now)
                 self.monthly_messages.append(now)

@@ -23,13 +23,22 @@ async def test_ibkr_source_get_recent_trades(test_timestamp):
         mock_ib_instance = Mock()
         mock_ib_instance.isConnected.return_value = True
 
+        # Create mock fill
+        mock_fill = Mock()
+        mock_fill.execution = Mock()
+        mock_fill.execution.time = test_timestamp
+        mock_fill.execution.shares = 100
+        mock_fill.execution.price = 150.25
+        mock_fill.execution.side = "BOT"
+        mock_fill.execution.execId = "test-exec-id"
+
+        # Create mock trade
         mock_trade = Mock()
-        mock_trade.time = test_timestamp
+        mock_trade.contract = Mock()
         mock_trade.contract.symbol = "AAPL"
-        mock_trade.execution.shares = 100
-        mock_trade.execution.price = 150.25
-        mock_trade.execution.side = "BOT"
-        mock_trade.execution.execId = "test-exec-id"
+        mock_trade.isDone.return_value = True
+        mock_trade.filled.return_value = 100
+        mock_trade.fills = [mock_fill]
 
         mock_ib_instance.trades.return_value = [mock_trade]
         mock_ib.return_value = mock_ib_instance
@@ -41,3 +50,6 @@ async def test_ibkr_source_get_recent_trades(test_timestamp):
         trades = list(source.get_recent_trades(since_time))
         assert len(trades) == 1
         assert trades[0].symbol == "AAPL"
+        assert trades[0].quantity == 100
+        assert trades[0].price == 150.25
+        assert trades[0].side == "BUY"

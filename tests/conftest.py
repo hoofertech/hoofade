@@ -21,7 +21,7 @@ class MockTradeSource(TradeSource):
         return True
 
     def get_recent_trades(self, since: datetime):
-        return [t for t in self.trades if t.timestamp >= since]
+        return iter([t for t in self.trades if t.timestamp >= since])
 
     def disconnect(self) -> None:
         self.connected = False
@@ -70,7 +70,7 @@ def sample_trade(test_timestamp):
     """Sample trade with fixed timestamp"""
     return Trade(
         symbol="AAPL",
-        quantity=100,
+        quantity=Decimal("100"),
         price=Decimal("150.25"),
         side="BUY",
         timestamp=test_timestamp,
@@ -86,7 +86,7 @@ def matching_trade(test_timestamp):
     logger.info(f"type(later_timestamp): {later_timestamp}")
     return Trade(
         symbol="AAPL",
-        quantity=-100,
+        quantity=Decimal("-100"),
         price=Decimal("160.25"),
         side="SELL",
         timestamp=later_timestamp,

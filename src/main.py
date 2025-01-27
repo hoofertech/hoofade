@@ -11,7 +11,7 @@ from src.formatters.trade import TradeFormatter
 from src.sources.factory import SourceFactory
 from src.sinks.factory import SinkFactory
 from src.config import get_source_configs, get_sink_configs, get_db_session
-from src.models.trade import Trade as DBTrade
+from src.models.trade import DBTrade
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -68,22 +68,15 @@ class TradePublisher:
             self.db.rollback()
 
     def process_single_trade(self, trade):
-        # Save to database
-        db_trade = DBTrade(
-            symbol=trade.symbol,
-            quantity=float(trade.quantity),
-            price=float(trade.price),
-            side=trade.side,
-            timestamp=trade.timestamp,
-            source_id=trade.source_id,
-            trade_id=trade.trade_id,
-        )
+        # Save to database using the conversion method
+        db_trade = DBTrade.from_domain(trade)
         self.db.add(db_trade)
 
         # Find matching trade
-        matching_trade = self.find_matching_trade(trade)
+        matching_db_trade = self.find_matching_trade(trade)
 
-        # Format message
+        # Format message with domain model
+        matching_trade = matching_db_trade.to_domain() if matching_db_trade else None
         message = self.formatter.format_trade(trade, matching_trade)
 
         # Publish to all sinks
@@ -97,9 +90,9 @@ class TradePublisher:
                     )
 
         # Update matching trade if exists
-        if matching_trade:
-            matching_trade.matched = True
-            self.db.add(matching_trade)
+        if matching_db_trade:
+            setattr(matching_db_trade, "matched", True)
+            self.db.add(matching_db_trade)
 
     def find_matching_trade(self, trade):
         return (
@@ -107,7 +100,7 @@ class TradePublisher:
             .filter(
                 DBTrade.symbol == trade.symbol,
                 DBTrade.side != trade.side,
-                not DBTrade.matched,
+                DBTrade.matched.is_(False),
             )
             .first()
         )
