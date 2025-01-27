@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timezone
-from src.sinks.twitter import TwitterSink
-from src.models.message import Message
+from sinks.twitter import TwitterSink
+from models.message import Message
 from unittest.mock import Mock, patch
 
 

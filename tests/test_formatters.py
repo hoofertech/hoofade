@@ -1,8 +1,8 @@
 import pytest
 from datetime import timedelta
 from decimal import Decimal
-from src.formatters.trade import TradeFormatter
-from src.models.trade import Trade
+from formatters.trade import TradeFormatter
+from models.trade import Trade
 
 
 @pytest.fixture

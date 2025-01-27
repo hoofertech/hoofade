@@ -1,5 +1,5 @@
 from datetime import timedelta
-from src.formatters.trade import TradeFormatter
+from formatters.trade import TradeFormatter
 
 
 def test_end_to_end_flow(test_timestamp, mock_source, mock_sink):
