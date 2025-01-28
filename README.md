@@ -18,42 +18,79 @@ A Python daemon that monitors IBKR trades using Flex Reports and automatically p
 3. Create two new Custom Flex Queries:
 
 ### Portfolio Query Setup
-1. Click "Create New Flex Query"
-2. Enter basic information:
+1. Login to IBKR Account
+2. Navigate to Performance and Reports > Flex Queries
+3. Select all your target accounts
+4. On the "Activity Flex Query" section, click on "Create" (like a + sign)
+5. Enter basic information:
    - Query Name: "Current Portfolio"
-   - Type: "Model Portfolio"
-3. Configure report settings:
-   - Base Currency: Your account's base currency
-   - Date Period: "Today"
-   - Format: XML
-4. Select sections and fields:
-   - Expand "Positions" section
-   - Required fields:
-     - [x] Symbol
-     - [x] Position
-     - [x] Cost Basis
-     - [x] Mark Price
-5. Save the query and note down the Query ID
+6. On the "sections" section:
+   - Click on "Open Positions"
+      - Required fields:
+         - [x] Account ID
+         - [x] Currency
+         - [x] Symbol
+         - [x] Listing Exchange
+         - [x] Underlying Symbol
+         - [x] Expiry
+         - [x] Put/Call
+         - [x] Quantity
+         - [x] Cost Basis Price
+         - [x] Mark Price
+   - Click on "Save"
+7. On the "Delivery Configuration" section:
+   - Make sure all your target accounts are selected
+   - Models: "Optional"
+   - Format: "XML"
+   - Period: "Last Business Day"
+8. On the "General Configuration" section:
+   - Date Format: yyyyMMdd
+   - Time Format: HHmmss
+   - Date/Time Separator: "; (semicolon)"
+   - Profit and Loss: "Default"
+   - Include Canceled Trades? "No"
+   - Include Currency Rates? "No"
+   - Include Audit Trail Fields? "No"
+   - Display Account Alias in Place of Account ID? "No"
+   - Breakout by Day? "No"
+9. Save the query and note down the Query ID
 
 ### Trades Query Setup
-1. Click "Create New Flex Query"
-2. Enter basic information:
-   - Query Name: "Recent Trades"
-   - Type: "Trade Confirmation Flex Query"
-3. Configure report settings:
-   - Base Currency: Your account's base currency
-   - Date Period: "Last 24 Hours"
-   - Format: XML
-4. Select sections and fields:
-   - Expand "Trades" section
+1. Login to IBKR Account
+2. Navigate to Performance and Reports > Flex Queries
+3. Select all your target accounts
+4. On the "Trade Confirmation Flex Query" section, click on "Create" (like a + sign)
+5. Enter basic information:
+   - Query Name: "Current Portfolio"
+6. On the "sections" section:
+   - Click on "Trade Confirmation"
    - Required fields:
-     - [x] Symbol
-     - [x] Date/Time
-     - [x] Quantity
-     - [x] Price
-     - [x] Buy/Sell
-     - [x] Execution ID
-5. Save the query and note down the Query ID
+      - [x] Account ID
+      - [x] Currency
+      - [x] Symbol
+      - [x] Listing Exchange
+      - [x] Underlying Symbol
+      - [x] Expiry
+      - [x] Put/Call
+      - [x] Trade ID
+      - [x] Date/Time
+      - [x] Buy/Sell
+      - [x] Quantity
+      - [x] Price
+   - Click on "Save"
+7. On the "Delivery Configuration" section:
+   - Make sure all your target accounts are selected
+   - Models: "Optional"
+   - Format: "XML"
+   - Period: "Today"
+8. On the "General Configuration" section:
+   - Date Format: yyyyMMdd
+   - Time Format: HHmmss
+   - Date/Time Separator: "; (semicolon)"
+   - Include Canceled Trades? "No"
+   - Include Audit Trail Fields? "No"
+   - Display Account Alias in Place of Account ID? "No"
+9. Save the query and note down the Query ID
 
 ### Get Flex Web Service Token
 1. In Account Management, go to Reports > Settings
