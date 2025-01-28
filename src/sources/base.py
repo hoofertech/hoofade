@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Iterator
+from typing import AsyncIterator
 from datetime import datetime
-from src.models.trade import Trade
+from models.trade import Trade
 
 
 class TradeSource(ABC):
@@ -9,16 +9,16 @@ class TradeSource(ABC):
         self.source_id = source_id
 
     @abstractmethod
-    def connect(self) -> bool:
+    async def connect(self) -> bool:
         """Establish connection to the source"""
         pass
 
     @abstractmethod
-    def get_recent_trades(self, since: datetime) -> Iterator[Trade]:
+    def get_recent_trades(self, since: datetime) -> AsyncIterator[Trade]:
         """Get trades since the specified timestamp"""
         pass
 
     @abstractmethod
-    def disconnect(self) -> None:
+    async def disconnect(self) -> None:
         """Clean up any connections"""
         pass

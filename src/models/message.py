@@ -7,4 +7,4 @@ from typing import Dict, Any
 class Message:
     content: str
     timestamp: datetime
-    metadata: Dict[str, Any]  # For sink-specific data
+    metadata: Dict[str, Any]

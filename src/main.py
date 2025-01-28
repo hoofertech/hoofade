@@ -1,17 +1,21 @@
-import time
-import schedule
+import asyncio
+from datetime import datetime, timezone, timedelta
 import logging
-from datetime import datetime, timedelta, timezone
+from models.trade import Trade
+from models.db_trade import DBTrade
+from formatters.trade import TradeFormatter
 from typing import Dict
-from sqlalchemy.orm import Session
+from models.db_trade import Base
+from sources.ibkr import IBKRSource
+from sinks.twitter import TwitterSink
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker
+from config import get_source_configs, get_sink_configs, get_db_url
+from sources.base import TradeSource
+from sinks.base import MessageSink
+from sqlalchemy import select
+from typing import Optional
 
-from src.sources.base import TradeSource
-from src.sinks.base import MessageSink
-from src.formatters.trade import TradeFormatter
-from src.sources.factory import SourceFactory
-from src.sinks.factory import SinkFactory
-from src.config import get_source_configs, get_sink_configs, get_db_session
-from src.models.trade import DBTrade
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -19,61 +23,76 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def create_sources() -> Dict[str, TradeSource]:
+    """Create trade sources from configuration"""
+    sources = {}
+    configs = get_source_configs()
+
+    for source_id, config in configs.items():
+        if config["type"] == "ibkr":
+            sources[source_id] = IBKRSource(
+                source_id=config["source_id"],
+                portfolio_token=config["portfolio"]["token"],
+                portfolio_query_id=config["portfolio"]["query_id"],
+                trades_token=config["trades"]["token"],
+                trades_query_id=config["trades"]["query_id"],
+            )
+
+    return sources
+
+
+def create_sinks() -> Dict[str, MessageSink]:
+    """Create message sinks from configuration"""
+    sinks = {}
+    configs = get_sink_configs()
+
+    for sink_id, config in configs.items():
+        if config["type"] == "twitter":
+            sinks[sink_id] = TwitterSink(
+                sink_id=config["sink_id"],
+                bearer_token=config["bearer_token"],
+                api_key=config["api_key"],
+                api_secret=config["api_secret"],
+                access_token=config["access_token"],
+                access_token_secret=config["access_token_secret"],
+            )
+
+    return sinks
+
+
 class TradePublisher:
-    def __init__(self):
-        self.sources: Dict[str, TradeSource] = {}
-        self.sinks: Dict[str, MessageSink] = {}
-        self.formatter = TradeFormatter()
-        self.db: Session = get_db_session()
-        self.setup_sources()
-        self.setup_sinks()
+    def __init__(
+        self,
+        sources: Dict[str, TradeSource],
+        sinks: Dict[str, MessageSink],
+        db: AsyncSession,
+        formatter: TradeFormatter,
+    ):
+        self.sources = sources
+        self.sinks = sinks
+        self.db = db
+        self.formatter = formatter
 
-    def setup_sources(self):
-        source_configs = get_source_configs()
-        for source_id, config in source_configs.items():
-            try:
-                source = SourceFactory.create_source(config["type"], config)
-                if source.connect():
-                    self.sources[source_id] = source
-                    logger.info(f"Connected to source: {source_id}")
-                else:
-                    logger.error(f"Failed to connect to source: {source_id}")
-            except Exception as e:
-                logger.error(f"Error setting up source {source_id}: {str(e)}")
-
-    def setup_sinks(self):
-        sink_configs = get_sink_configs()
-        for sink_id, config in sink_configs.items():
-            try:
-                sink = SinkFactory.create_sink(config["type"], config)
-                if sink.connect():
-                    self.sinks[sink_id] = sink
-                    logger.info(f"Connected to sink: {sink_id}")
-                else:
-                    logger.error(f"Failed to connect to sink: {sink_id}")
-            except Exception as e:
-                logger.error(f"Error setting up sink {sink_id}: {str(e)}")
-
-    def process_trades(self):
+    async def process_trades(self):
         try:
             since = datetime.now(timezone.utc) - timedelta(minutes=15)
 
             for source in self.sources.values():
-                for trade in source.get_recent_trades(since):
-                    self.process_single_trade(trade)
+                async for trade in source.get_recent_trades(since):
+                    await self.process_single_trade(trade)
 
-            self.db.commit()
+            await self.db.commit()
         except Exception as e:
             logger.error(f"Error processing trades: {str(e)}")
-            self.db.rollback()
+            await self.db.rollback()
 
-    def process_single_trade(self, trade):
+    async def process_single_trade(self, trade):
         # Save to database using the conversion method
         db_trade = DBTrade.from_domain(trade)
         self.db.add(db_trade)
 
         # Find matching trade
-        matching_db_trade = self.find_matching_trade(trade)
+        matching_db_trade = await self.find_matching_trade(trade)
 
         # Format message with domain model
         matching_trade = matching_db_trade.to_domain() if matching_db_trade else None
@@ -82,7 +101,7 @@ class TradePublisher:
         # Publish to all sinks
         for sink in self.sinks.values():
             if sink.can_publish():
-                if sink.publish(message):
+                if await sink.publish(message):
                     logger.info(f"Published trade {trade.trade_id} to {sink.sink_id}")
                 else:
                     logger.warning(
@@ -94,42 +113,63 @@ class TradePublisher:
             setattr(matching_db_trade, "matched", True)
             self.db.add(matching_db_trade)
 
-    def find_matching_trade(self, trade):
-        return (
-            self.db.query(DBTrade)
-            .filter(
+    async def find_matching_trade(self, trade: Trade) -> Optional[DBTrade]:
+        """Find a matching trade for the given trade"""
+        result = await self.db.execute(
+            select(DBTrade).where(
                 DBTrade.symbol == trade.symbol,
-                DBTrade.side != trade.side,
-                DBTrade.matched.is_(False),
+                DBTrade.quantity == -trade.quantity,  # Opposite quantity
+                DBTrade.matched == False,  # Not already matched # noqa: E712
+                DBTrade.source_id == trade.source_id,  # Same source
             )
-            .first()
         )
+        return result.scalar_one_or_none()
 
-    def cleanup(self):
-        for source in self.sources.values():
-            try:
-                source.disconnect()
-            except Exception as e:
-                logger.error(
-                    f"Error disconnecting from source {source.source_id}: {str(e)}"
-                )
-
-
-def main():
-    publisher = TradePublisher()
-
-    try:
-        schedule.every(15).minutes.do(publisher.process_trades)
-        logger.info("Trade publisher started")
-
+    async def run(self):
+        """Main loop to process trades periodically"""
         while True:
-            schedule.run_pending()
-            time.sleep(1)
-    except KeyboardInterrupt:
-        logger.info("Shutting down...")
-    finally:
-        publisher.cleanup()
+            for source in self.sources.values():
+                try:
+                    if not await source.connect():
+                        logger.error(f"Failed to connect to source {source.source_id}")
+                        continue
+
+                    await self.process_trades()
+
+                finally:
+                    await source.disconnect()
+
+            await asyncio.sleep(900)  # Sleep for 15 minutes
 
 
-if __name__ == "__main__":
-    main()
+async def create_db() -> AsyncSession:
+    """Create database session"""
+    engine = create_async_engine(get_db_url())
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    # Use async_sessionmaker instead of sessionmaker
+    async_session = async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    # Create and return a new session
+    return async_session()
+
+
+async def main():
+    # Setup logging
+    logging.basicConfig(level=logging.INFO)
+
+    # Load configuration and create components
+    sources = create_sources()
+    sinks = create_sinks()
+    db = await create_db()  # Add await here
+    formatter = TradeFormatter()
+
+    # Create and run publisher
+    publisher = TradePublisher(sources, sinks, db, formatter)
+    await publisher.run()

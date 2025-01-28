@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from src.models.trade import Trade
-from src.models.message import Message
+from models.trade import Trade
+from models.message import Message
 from typing import Optional
 
 

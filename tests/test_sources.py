@@ -1,55 +1,146 @@
 import pytest
-from datetime import timedelta
-from src.sources.ibkr import IBKRSource
+from datetime import datetime, timezone, timedelta
+from decimal import Decimal
 from unittest.mock import Mock, patch
+import pandas as pd
+from sources.ibkr import IBKRSource
+
+
+@pytest.fixture
+def mock_flex_report():
+    with patch("sources.flex_client.FlexReport") as mock_report_class:
+        # Create a mock for the FlexReport instance
+        mock_report_instance = Mock()
+
+        # Mock the download method (not async)
+        mock_report_instance.download = Mock()
+
+        # Create mock DataFrame for positions
+        positions_data = {
+            "symbol": ["AAPL"],
+            "position": [100],
+            "costBasis": [150.25],
+            "markPrice": [155.50],
+        }
+        positions_df = pd.DataFrame(positions_data)
+
+        # Create mock DataFrame for trades
+        trades_data = {
+            "symbol": ["AAPL"],
+            "quantity": [100],
+            "price": [150.25],
+            "dateTime": [datetime.now(timezone.utc)],
+            "tradeID": ["test-trade-id"],
+        }
+        trades_df = pd.DataFrame(trades_data)
+
+        # Mock the df method to return our DataFrames
+        def mock_df(topic):
+            if topic == "Position":
+                return positions_df
+            elif topic == "TradeConfirm":
+                return trades_df
+            return None
+
+        mock_report_instance.df = Mock(side_effect=mock_df)
+
+        # Make the FlexReport class return our mock instance
+        mock_report_class.return_value = mock_report_instance
+
+        yield mock_report_class
 
 
 @pytest.mark.asyncio
-async def test_ibkr_source_connection():
-    with patch("ib_insync.IB") as mock_ib:
-        mock_ib_instance = Mock()
-        mock_ib_instance.connect.return_value = None
-        mock_ib_instance.isConnected.return_value = True
-        mock_ib.return_value = mock_ib_instance
+async def test_ibkr_source_connection(mock_flex_report):
+    source = IBKRSource(
+        source_id="test-ibkr",
+        portfolio_token="test-token",
+        portfolio_query_id="test-query",
+        trades_token="test-token",
+        trades_query_id="test-query",
+    )
 
-        source = IBKRSource("test-ibkr", "localhost", 7496, 1)
-        source.ib = mock_ib_instance
-        assert source.connect() is True
+    assert await source.connect() is True
+    mock_flex_report.assert_called_with(token="test-token", queryId="test-query")
+    mock_instance = mock_flex_report.return_value
+    mock_instance.download.assert_called_with("test-token", "test-query")
 
 
 @pytest.mark.asyncio
-async def test_ibkr_source_get_recent_trades(test_timestamp):
-    with patch("ib_insync.IB") as mock_ib:
-        mock_ib_instance = Mock()
-        mock_ib_instance.isConnected.return_value = True
+async def test_ibkr_source_connection_failure(mock_flex_report):
+    mock_instance = mock_flex_report.return_value
+    mock_instance.download.side_effect = Exception("Failed to download report")
 
-        # Create mock fill
-        mock_fill = Mock()
-        mock_fill.execution = Mock()
-        mock_fill.execution.time = test_timestamp
-        mock_fill.execution.shares = 100
-        mock_fill.execution.price = 150.25
-        mock_fill.execution.side = "BOT"
-        mock_fill.execution.execId = "test-exec-id"
+    source = IBKRSource(
+        source_id="test-ibkr",
+        portfolio_token="test-token",
+        portfolio_query_id="test-query",
+        trades_token="test-token",
+        trades_query_id="test-query",
+    )
 
-        # Create mock trade
-        mock_trade = Mock()
-        mock_trade.contract = Mock()
-        mock_trade.contract.symbol = "AAPL"
-        mock_trade.isDone.return_value = True
-        mock_trade.filled.return_value = 100
-        mock_trade.fills = [mock_fill]
+    assert await source.connect() is False
 
-        mock_ib_instance.trades.return_value = [mock_trade]
-        mock_ib.return_value = mock_ib_instance
 
-        source = IBKRSource("test-ibkr", "localhost", 7496, 1)
-        source.ib = mock_ib_instance
+@pytest.mark.asyncio
+async def test_ibkr_source_get_recent_trades(mock_flex_report, test_timestamp):
+    source = IBKRSource(
+        source_id="test-ibkr",
+        portfolio_token="test-token",
+        portfolio_query_id="test-query",
+        trades_token="test-token",
+        trades_query_id="test-query",
+    )
 
-        since_time = test_timestamp - timedelta(minutes=15)
-        trades = list(source.get_recent_trades(since_time))
-        assert len(trades) == 1
-        assert trades[0].symbol == "AAPL"
-        assert trades[0].quantity == 100
-        assert trades[0].price == 150.25
-        assert trades[0].side == "BUY"
+    since_time = test_timestamp - timedelta(minutes=15)
+    trades = [trade async for trade in source.get_recent_trades(since_time)]
+
+    assert len(trades) == 1
+    assert trades[0].symbol == "AAPL"
+    assert trades[0].quantity == Decimal("100")
+    assert trades[0].price == Decimal("150.25")
+    assert trades[0].side == "BUY"
+
+    mock_flex_report.assert_called_with(token="test-token", queryId="test-query")
+    mock_instance = mock_flex_report.return_value
+    mock_instance.download.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_ibkr_source_get_recent_trades_empty(mock_flex_report, test_timestamp):
+    # Override the mock to return empty DataFrame
+    mock_instance = mock_flex_report.return_value
+    mock_instance.df = Mock(return_value=pd.DataFrame())
+
+    source = IBKRSource(
+        source_id="test-ibkr",
+        portfolio_token="test-token",
+        portfolio_query_id="test-query",
+        trades_token="test-token",
+        trades_query_id="test-query",
+    )
+
+    since_time = test_timestamp - timedelta(minutes=15)
+    trades = [trade async for trade in source.get_recent_trades(since_time)]
+
+    assert len(trades) == 0
+
+
+@pytest.mark.asyncio
+async def test_ibkr_source_get_recent_trades_none_df(mock_flex_report, test_timestamp):
+    # Override the mock to return None
+    mock_instance = mock_flex_report.return_value
+    mock_instance.df = Mock(return_value=None)
+
+    source = IBKRSource(
+        source_id="test-ibkr",
+        portfolio_token="test-token",
+        portfolio_query_id="test-query",
+        trades_token="test-token",
+        trades_query_id="test-query",
+    )
+
+    since_time = test_timestamp - timedelta(minutes=15)
+    trades = [trade async for trade in source.get_recent_trades(since_time)]
+
+    assert len(trades) == 0

@@ -1,68 +1,65 @@
 from datetime import datetime
-from typing import Iterator
+from typing import AsyncIterator
 import logging
+from models.trade import Trade
+from sources.base import TradeSource
 import asyncio
-from src.models.trade import Trade
-from src.sources.base import TradeSource
-from decimal import Decimal
+
+# Set up event loop
+try:
+    _event_loop = asyncio.get_running_loop()
+except RuntimeError:
+    _event_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(_event_loop)
+
+from .flex_client import FlexClient, FlexQueryConfig
 
 logger = logging.getLogger(__name__)
 
 
 class IBKRSource(TradeSource):
-    def __init__(self, source_id: str, host: str, port: int, client_id: int):
+    def __init__(
+        self,
+        source_id: str,
+        portfolio_token: str,
+        portfolio_query_id: str,
+        trades_token: str,
+        trades_query_id: str,
+    ):
         super().__init__(source_id)
-        self.host = host
-        self.port = port
-        self.client_id = client_id
-        # Set up event loop
+        self.flex_client = FlexClient(
+            portfolio_config=FlexQueryConfig(
+                token=portfolio_token, query_id=portfolio_query_id
+            ),
+            trades_config=FlexQueryConfig(token=trades_token, query_id=trades_query_id),
+        )
+
+    async def connect(self) -> bool:
         try:
-            self._loop = asyncio.get_running_loop()
-        except RuntimeError:
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
-
-        from ib_insync import IB
-
-        self.ib = IB()
-
-    def connect(self) -> bool:
-        try:
-            self.ib.connect(self.host, self.port, clientId=self.client_id)
+            # Test connection by fetching positions
+            await self.flex_client.get_positions()
             return True
         except Exception as e:
-            logger.error(f"Failed to connect to IBKR: {str(e)}")
+            logger.error(f"Failed to connect to IBKR Flex: {str(e)}")
             return False
 
-    def get_recent_trades(self, since: datetime) -> Iterator[Trade]:
-        from ib_insync import Trade as IBTrade
+    async def get_recent_trades(self, since: datetime) -> AsyncIterator[Trade]:
+        try:
+            executions = await self.flex_client.get_executions()
+            for exec in executions:
+                if exec.timestamp >= since:
+                    yield Trade(
+                        symbol=exec.symbol,
+                        quantity=exec.quantity,
+                        price=exec.price,
+                        side=exec.side,
+                        timestamp=exec.timestamp,
+                        source_id=self.source_id,
+                        trade_id=exec.exec_id,
+                    )
+        except Exception as e:
+            logger.error(f"Error fetching trades: {str(e)}")
 
-        trades: list[IBTrade] = self.ib.trades()
-        for trade in trades:
-            # Only process filled trades
-            if not trade.isDone():
-                continue
-
-            filled_quantity = trade.filled()
-            if filled_quantity == 0:
-                continue
-
-            # Get the last fill time
-            last_fill = trade.fills[-1] if trade.fills else None
-            if not last_fill or last_fill.execution.time < since:
-                continue
-
-            yield Trade(
-                symbol=trade.contract.symbol,
-                quantity=Decimal(str(filled_quantity)),
-                price=Decimal(str(last_fill.execution.price)),
-                side="BUY" if last_fill.execution.side == "BOT" else "SELL",
-                timestamp=last_fill.execution.time,
-                source_id=self.source_id,
-                trade_id=str(last_fill.execution.execId),
-            )
-
-    def disconnect(self) -> None:
-        if self.ib.isConnected():
-            self.ib.disconnect()
-        self._loop.close()
+    async def disconnect(self) -> None:
+        # No cleanup needed for Flex API
+        pass

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from src.models.message import Message
+from models.message import Message
 
 
 class MessageSink(ABC):
@@ -7,16 +7,11 @@ class MessageSink(ABC):
         self.sink_id = sink_id
 
     @abstractmethod
-    def connect(self) -> bool:
-        """Establish connection to the sink"""
-        pass
-
-    @abstractmethod
-    def publish(self, message: Message) -> bool:
+    async def publish(self, message: Message) -> bool:
         """Publish a message to the sink"""
         pass
 
     @abstractmethod
     def can_publish(self) -> bool:
-        """Check if sink can accept new messages (e.g., rate limits)"""
+        """Check if the sink can accept new messages"""
         pass
