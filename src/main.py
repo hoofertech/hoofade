@@ -15,13 +15,10 @@ from sources.base import TradeSource
 from sinks.base import MessageSink
 from sqlalchemy import select
 from typing import Optional
+from dotenv import load_dotenv
 
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
-
 
 def create_sources() -> Dict[str, TradeSource]:
     """Create trade sources from configuration"""
@@ -30,6 +27,7 @@ def create_sources() -> Dict[str, TradeSource]:
 
     for source_id, config in configs.items():
         if config["type"] == "ibkr":
+            logger.info(f"Creating IBKR source {source_id}")
             sources[source_id] = IBKRSource(
                 source_id=config["source_id"],
                 portfolio_token=config["portfolio"]["token"],
@@ -48,6 +46,7 @@ def create_sinks() -> Dict[str, MessageSink]:
 
     for sink_id, config in configs.items():
         if config["type"] == "twitter":
+            logger.info(f"Creating Twitter sink {sink_id}")
             sinks[sink_id] = TwitterSink(
                 sink_id=config["sink_id"],
                 bearer_token=config["bearer_token"],
@@ -143,6 +142,7 @@ class TradePublisher:
 
 
 async def create_db() -> AsyncSession:
+    logger.info("Creating database session: %s", get_db_url())
     """Create database session"""
     engine = create_async_engine(get_db_url())
 
@@ -173,3 +173,12 @@ async def main():
     # Create and run publisher
     publisher = TradePublisher(sources, sinks, db, formatter)
     await publisher.run()
+
+
+if __name__ == "__main__":
+    
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    load_dotenv(override=True)
+    asyncio.run(main())

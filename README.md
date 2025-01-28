@@ -25,7 +25,7 @@ A Python daemon that monitors IBKR trades using Flex Reports and automatically p
 5. Enter basic information:
    - Query Name: "Current Portfolio"
 6. On the "sections" section:
-   - Click on "Open Positions"
+   - Click on "xtrades-positions"
       - Required fields:
          - [x] Account ID
          - [x] Currency
@@ -61,7 +61,7 @@ A Python daemon that monitors IBKR trades using Flex Reports and automatically p
 3. Select all your target accounts
 4. On the "Trade Confirmation Flex Query" section, click on "Create" (like a + sign)
 5. Enter basic information:
-   - Query Name: "Current Portfolio"
+   - Query Name: "xtrades-recent"
 6. On the "sections" section:
    - Click on "Trade Confirmation"
    - Required fields:
