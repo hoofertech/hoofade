@@ -114,35 +114,41 @@ class JsonSource(TradeSource):
 
     async def get_recent_trades(self, since: datetime) -> AsyncIterator[Trade]:
         data = self._load_latest_trades()
-
+        
         for trade_data in data.get("TradeConfirm", []):
             try:
-                # Parse datetime with correct format
-                trade_time = datetime.strptime(
-                    trade_data["dateTime"].replace(";", " "), "%Y%m%d %H%M%S"
-                ).replace(tzinfo=timezone.utc)
-
+                # Parse datetime from IBKR format (YYYYMMDD;HHMMSS)
+                trade_time_str = trade_data["dateTime"]
+                if ";" in trade_time_str:
+                    # Handle IBKR Flex Query format: "20250129;112309"
+                    trade_time = datetime.strptime(
+                        trade_time_str.replace(";", " "), 
+                        "%Y%m%d %H%M%S"
+                    ).replace(tzinfo=timezone.utc)
+                else:
+                    # Handle other possible formats (like ISO format)
+                    trade_time = datetime.fromisoformat(trade_time_str)
+                    if trade_time.tzinfo is None:
+                        trade_time = trade_time.replace(tzinfo=timezone.utc)
+                
                 if trade_time >= since:
                     if trade_data.get("putCall"):
                         # Option trade
                         option_details = OptionDetails(
                             strike=Decimal(str(trade_data["strike"])),
-                            expiry=datetime.strptime(
-                                str(trade_data["expiry"]), "%Y%m%d"
-                            ).date(),
-                            option_type=OptionType.CALL
-                            if trade_data["putCall"] == "C"
-                            else OptionType.PUT,
+                            expiry=datetime.strptime(str(trade_data["expiry"]), "%Y%m%d").date(),
+                            option_type=OptionType.CALL if trade_data["putCall"] == "C" else OptionType.PUT
                         )
                         instrument = Instrument(
                             symbol=trade_data["underlyingSymbol"],
                             type=InstrumentType.OPTION,
-                            option_details=option_details,
+                            option_details=option_details
                         )
                     else:
                         # Stock trade
                         instrument = Instrument(
-                            symbol=trade_data["symbol"], type=InstrumentType.STOCK
+                            symbol=trade_data["symbol"],
+                            type=InstrumentType.STOCK
                         )
 
                     yield Trade(
@@ -152,10 +158,10 @@ class JsonSource(TradeSource):
                         side="BUY" if trade_data["buySell"] == "BUY" else "SELL",
                         timestamp=trade_time,
                         source_id=self.source_id,
-                        trade_id=str(trade_data["tradeID"]),
+                        trade_id=str(trade_data["tradeID"])
                     )
             except Exception as e:
-                logger.error(f"Error parsing trade: {e}")
+                logger.error(f"Error parsing trade: {e} for data: {trade_data}")
                 continue
 
     async def disconnect(self) -> None:

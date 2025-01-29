@@ -50,9 +50,18 @@ class FlexClient:
 
     def _save_report(self, report: FlexReport, query_type: str) -> None:
         """Save the raw XML and parsed DataFrame to files"""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # Save raw XML
+        # Extract timestamp from the XML file's whenGenerated attribute
+        # Format in XML: YYYYMMDD;HHMMSS
+        when_generated = report.root.find(".//FlexStatement").get("whenGenerated", "")
+        if when_generated:
+            # Convert YYYYMMDD;HHMMSS to YYYYMMDD_HHMMSS
+            timestamp = when_generated.replace(";", "_")
+        else:
+            # Fallback to current time if whenGenerated is not found
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            logger.warning("Could not find whenGenerated in XML, using current time")
+        
+        # Save XML file
         xml_path = self.save_dir / f"{query_type}_{timestamp}.xml"
         report.save(str(xml_path))
 
@@ -67,6 +76,8 @@ class FlexClient:
         with open(json_path, "w") as f:
             json.dump(data, f, default=str)
 
+        logger.info(f"Saved {query_type} report to {xml_path} and {json_path}")
+
     def _download_flex_report(self, token: str, query_id: str) -> FlexReport:
         try:
             logger.info(f"Downloading Flex report: {token} {query_id}")
@@ -76,6 +87,13 @@ class FlexClient:
             logger.info(f"token: {token}")
             logger.info(f"portfolio_config.token: {self.portfolio_config.token}")
             logger.info(f"trades_config.token: {self.trades_config.token}")
+            print(f"report: {report}")
+            
+            if not report.data:
+                logger.error("No data received from IBKR Flex API")
+                raise Exception("No data received from IBKR Flex API")
+
+            logger.info(f"Available topics in report: {report.topics()}")
 
             # Save the report
             query_type = (
