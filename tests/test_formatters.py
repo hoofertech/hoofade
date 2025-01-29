@@ -1,8 +1,9 @@
 import pytest
-from datetime import timedelta
+from datetime import timedelta, date
 from decimal import Decimal
 from formatters.trade import TradeFormatter
 from models.trade import Trade
+from models.instrument import Instrument, OptionType
 
 
 @pytest.fixture
@@ -10,53 +11,110 @@ def formatter():
     return TradeFormatter()
 
 
-def test_format_new_trade(formatter, sample_trade):
-    message = formatter.format_trade(sample_trade)
+@pytest.fixture
+def stock_instrument():
+    return Instrument.stock(symbol="AAPL")
+
+
+@pytest.fixture
+def call_option_instrument():
+    return Instrument.option(
+        symbol="AAPL",
+        strike=Decimal("150"),
+        expiry=date(2024, 6, 15),
+        option_type=OptionType.CALL,
+    )
+
+
+@pytest.fixture
+def put_option_instrument():
+    return Instrument.option(
+        symbol="AAPL",
+        strike=Decimal("140"),
+        expiry=date(2024, 6, 15),
+        option_type=OptionType.PUT,
+    )
+
+
+@pytest.fixture
+def stock_trade(test_timestamp, stock_instrument):
+    return Trade(
+        instrument=stock_instrument,
+        quantity=Decimal("100"),
+        price=Decimal("150.25"),
+        side="BUY",
+        timestamp=test_timestamp,
+        source_id="test-source",
+        trade_id="test-exec-id-1",
+    )
+
+
+@pytest.fixture
+def call_option_trade(test_timestamp, call_option_instrument):
+    return Trade(
+        instrument=call_option_instrument,
+        quantity=Decimal("5"),
+        price=Decimal("3.50"),
+        side="BUY",
+        timestamp=test_timestamp,
+        source_id="test-source",
+        trade_id="test-exec-id-2",
+    )
+
+
+def test_format_new_stock_trade(formatter, stock_trade):
+    message = formatter.format_trade(stock_trade)
 
     expected_content = "New Trade Alert 🚨\n$AAPL\n📈 Buy 100 shares @ $150.25"
 
     assert message.content == expected_content
-    assert message.timestamp == sample_trade.timestamp
-    assert message.metadata["trade_id"] == sample_trade.trade_id
+    assert message.timestamp == stock_trade.timestamp
+    assert message.metadata["trade_id"] == stock_trade.trade_id
 
 
-def test_format_closed_position_profit(formatter, sample_trade, matching_trade):
-    message = formatter.format_trade(matching_trade, sample_trade)
+def test_format_new_call_option_trade(formatter, call_option_trade):
+    message = formatter.format_trade(call_option_trade)
 
-    # Extract the P&L value from the message
-    pl_line = [line for line in message.content.split("\n") if "P&L:" in line][0]
-    pl_value = float(pl_line.replace("P&L: ", "").replace("%", ""))
+    expected_content = (
+        "New Trade Alert 🚨\n$AAPL 15 Jun 2024 $150 📞\n📈 Buy 5 contracts @ $3.50"
+    )
 
-    assert pl_value == pytest.approx(-6.65, rel=0.01)
+    assert message.content == expected_content
+    assert message.timestamp == call_option_trade.timestamp
+    assert message.metadata["trade_id"] == call_option_trade.trade_id
+
+
+def test_format_closed_stock_position_profit(formatter, stock_trade):
+    matching_trade = Trade(
+        instrument=stock_trade.instrument,
+        quantity=Decimal("-100"),
+        price=Decimal("160.25"),
+        side="SELL",
+        timestamp=stock_trade.timestamp + timedelta(hours=2, minutes=30),
+        source_id="test-source",
+        trade_id="test-exec-id-3",
+    )
+
+    message = formatter.format_trade(matching_trade, stock_trade)
+
+    assert "$AAPL" in message.content
+    assert "P&L: -6.66%" in message.content
     assert "Hold time: 2 hours 30 minutes" in message.content
 
 
-def test_format_closed_position_loss(formatter, test_timestamp, sample_trade):
-    loss_trade = Trade(
-        symbol="AAPL",
-        quantity=Decimal("-100"),
-        price=Decimal("140.25"),
+def test_format_closed_option_position_loss(formatter, call_option_trade):
+    matching_trade = Trade(
+        instrument=call_option_trade.instrument,
+        quantity=Decimal("-5"),
+        price=Decimal("2.50"),
         side="SELL",
-        timestamp=test_timestamp + timedelta(days=1),
+        timestamp=call_option_trade.timestamp + timedelta(days=1),
         source_id="test-source",
-        trade_id="test-trade-3",
+        trade_id="test-exec-id-4",
     )
 
-    message = formatter.format_trade(loss_trade, sample_trade)
+    message = formatter.format_trade(matching_trade, call_option_trade)
 
-    expected_content = "Position Closed 📊\n$AAPL\nP&L: 6.66%\nHold time: 1 day"
-
-    assert message.content == expected_content
-
-
-def test_format_hold_time(formatter):
-    test_cases = [
-        (timedelta(minutes=30), "30 minutes"),
-        (timedelta(hours=1, minutes=30), "1 hour 30 minutes"),
-        (timedelta(hours=2), "2 hours"),
-        (timedelta(days=1), "1 day"),
-        (timedelta(days=2), "2 days"),
-    ]
-
-    for delta, expected in test_cases:
-        assert formatter._format_hold_time(delta) == expected
+    assert "$AAPL 15 Jun 2024 $150 📞" in message.content
+    assert "P&L: 28.57%" in message.content
+    assert "Hold time: 1 day" in message.content

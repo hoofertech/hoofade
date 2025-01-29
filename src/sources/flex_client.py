@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import List
 import logging
 import pandas as pd
+from models.instrument import Instrument, OptionType
 from ib_insync import FlexReport
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ class Position:
 
 @dataclass
 class Execution:
-    symbol: str
+    instrument: Instrument
     quantity: Decimal
     price: Decimal
     side: str
@@ -50,6 +51,7 @@ class FlexClient:
         report = self._download_flex_report(
             self.trades_config.token, self.trades_config.query_id
         )
+        logger.info(f"Report: {report.df('TradeConfirm')}")
         return self._parse_executions(report)
 
     def _download_flex_report(self, token: str, query_id: str) -> FlexReport:
@@ -81,33 +83,62 @@ class FlexClient:
         return positions
 
     def _parse_executions(self, report: FlexReport) -> List[Execution]:
-        df = report.df("TradeConfirm")  # Using TradeConfirm as shown in the notebook
-        if df is None or df.empty:
+        df = report.df("TradeConfirm")
+        if df is None or len(df.index) == 0:  # Changed from df.empty
             return []
 
         executions = []
         for _, row in df.iterrows():
-            # Convert datetime string to datetime object with timezone
-            trade_datetime = pd.to_datetime(str(row["dateTime"]), utc=True)
-            if pd.isna(trade_datetime):
-                logger.warning(f"Invalid datetime for trade: {row['tradeID']}")
+            try:
+                trade_datetime = pd.to_datetime(str(row["dateTime"]), utc=True)
+                if pd.isna(trade_datetime):
+                    logger.warning(f"Invalid datetime for trade: {row['tradeID']}")
+                    continue
+
+                # Parse instrument details
+                symbol = str(row["symbol"])
+
+                # Check if this is an option trade by checking putCall column
+                put_call_value = row.get("putCall")
+                is_option = isinstance(put_call_value, str) and put_call_value.strip()
+
+                if is_option:  # This is an option
+                    try:
+                        expiry = pd.to_datetime(str(row["expiry"])).date()
+                        strike = Decimal(str(row["strike"]))
+                        option_type = (
+                            OptionType.CALL
+                            if str(put_call_value).upper() == "C"
+                            else OptionType.PUT
+                        )
+                        instrument = Instrument.option(
+                            symbol=symbol,
+                            strike=strike,
+                            expiry=expiry,
+                            option_type=option_type,
+                        )
+                    except (ValueError, TypeError) as e:
+                        logger.warning(
+                            f"Invalid option data for trade {row['tradeID']}: {e}"
+                        )
+                        continue
+                else:  # This is a stock
+                    instrument = Instrument.stock(symbol=symbol)
+
+                executions.append(
+                    Execution(
+                        instrument=instrument,
+                        quantity=Decimal(str(abs(row["quantity"]))),
+                        price=Decimal(str(row["price"])),
+                        side="BUY" if float(row["quantity"]) > 0 else "SELL",
+                        timestamp=trade_datetime,
+                        exec_id=str(row["tradeID"]),
+                    )
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Error processing trade {row.get('tradeID', 'unknown')}: {e}"
+                )
                 continue
 
-            executions.append(
-                Execution(
-                    symbol=str(row["symbol"]),
-                    quantity=Decimal(str(abs(row["quantity"]))),
-                    price=Decimal(str(row["price"])),
-                    side="BUY" if float(row["quantity"]) > 0 else "SELL",
-                    timestamp=trade_datetime,
-                    exec_id=str(
-                        row["tradeID"]
-                    ),  # Using tradeID as shown in the notebook
-                )
-            )
         return executions
-
-    def _check_report_topics(self, report: FlexReport) -> None:
-        """Debug helper to check available topics in the report"""
-        topics = report.topics()
-        logger.info(f"Available topics in report: {topics}")

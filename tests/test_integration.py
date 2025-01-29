@@ -1,6 +1,8 @@
 from datetime import timedelta
 from formatters.trade import TradeFormatter
 import pytest
+from models.trade import Trade
+from decimal import Decimal
 
 
 @pytest.mark.asyncio
@@ -54,3 +56,45 @@ async def test_end_to_end_flow_with_matching_trade(
     assert "$AAPL" in published_message.content
     assert "P&L: -6.66%" in published_message.content
     assert "Hold time: 2 hours 30 minutes" in published_message.content
+
+
+@pytest.mark.asyncio
+async def test_end_to_end_flow_with_option_trade(
+    test_timestamp, mock_source, mock_sink, call_option_instrument
+):
+    # Create an option trade
+    option_trade = Trade(
+        instrument=call_option_instrument,
+        quantity=Decimal("5"),
+        price=Decimal("3.50"),
+        side="BUY",
+        timestamp=test_timestamp,
+        source_id="test-source",
+        trade_id="test-option-exec-1",
+    )
+
+    mock_source.trades = [option_trade]
+
+    # Setup
+    formatter = TradeFormatter()
+    since = test_timestamp - timedelta(minutes=15)
+
+    # Process trade from source
+    trades = [trade async for trade in mock_source.get_recent_trades(since)]
+    assert len(trades) == 1
+
+    # Format trade
+    message = formatter.format_trade(trades[0])
+
+    # Publish to sink
+    assert await mock_sink.publish(message)
+    assert len(mock_sink.messages) == 1
+
+    # Verify message content
+    published_message = mock_sink.messages[0]
+    assert "$AAPL" in published_message.content
+    assert "15 Jun 2024" in published_message.content
+    assert "$150" in published_message.content
+    assert "📞" in published_message.content
+    assert "5 contracts" in published_message.content
+    assert "$3.50" in published_message.content

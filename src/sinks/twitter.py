@@ -29,7 +29,7 @@ class TwitterSink(MessageSink):
 
     def can_publish(self) -> bool:
         now = datetime.now(timezone.utc)
-        return (now - self.last_publish).total_seconds() >= 60
+        return (now - self.last_publish).total_seconds() >= 1800  # 30 minutes
 
     async def publish(self, message: Message) -> bool:
         if not self.can_publish():

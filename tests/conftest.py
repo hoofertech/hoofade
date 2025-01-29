@@ -1,25 +1,21 @@
-from typing import List, AsyncIterator
 import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from decimal import Decimal
-import logging
 from models.trade import Trade
+from models.instrument import Instrument, OptionType
 from models.message import Message
 from sources.base import TradeSource
 from sinks.base import MessageSink
 from sinks.twitter import TwitterSink
-
-logger = logging.getLogger(__name__)
+from typing import AsyncIterator
 
 
 class MockTradeSource(TradeSource):
-    def __init__(self, source_id: str, trades: List[Trade]):
+    def __init__(self, source_id: str, trades: list[Trade]):
         super().__init__(source_id)
         self.trades = trades
-        self.connected = False
 
     async def connect(self) -> bool:
-        self.connected = True
         return True
 
     async def get_recent_trades(self, since: datetime) -> AsyncIterator[Trade]:
@@ -28,23 +24,20 @@ class MockTradeSource(TradeSource):
                 yield trade
 
     async def disconnect(self) -> None:
-        self.connected = False
+        pass
 
 
 class MockMessageSink(MessageSink):
     def __init__(self, sink_id: str):
         super().__init__(sink_id)
-        self.messages = []
-        self.can_publish_result = True
-
-    def can_publish(self) -> bool:
-        return self.can_publish_result
+        self.messages: list[Message] = []
 
     async def publish(self, message: Message) -> bool:
-        if self.can_publish():
-            self.messages.append(message)
-            return True
-        return False
+        self.messages.append(message)
+        return True
+
+    def can_publish(self) -> bool:
+        return True
 
 
 @pytest.fixture
@@ -54,10 +47,35 @@ def test_timestamp():
 
 
 @pytest.fixture
-def sample_trade(test_timestamp):
-    """Sample trade with fixed timestamp"""
-    return Trade(
+def stock_instrument():
+    return Instrument.stock(symbol="AAPL")
+
+
+@pytest.fixture
+def call_option_instrument():
+    return Instrument.option(
         symbol="AAPL",
+        strike=Decimal("150"),
+        expiry=date(2024, 6, 15),
+        option_type=OptionType.CALL,
+    )
+
+
+@pytest.fixture
+def put_option_instrument():
+    return Instrument.option(
+        symbol="AAPL",
+        strike=Decimal("140"),
+        expiry=date(2024, 6, 15),
+        option_type=OptionType.PUT,
+    )
+
+
+@pytest.fixture
+def sample_trade(test_timestamp, stock_instrument):
+    """Sample stock trade with fixed timestamp"""
+    return Trade(
+        instrument=stock_instrument,
         quantity=Decimal("100"),
         price=Decimal("150.25"),
         side="BUY",
@@ -68,23 +86,57 @@ def sample_trade(test_timestamp):
 
 
 @pytest.fixture
-def matching_trade(test_timestamp):
-    """Matching trade with fixed timestamp + 2.5 hours"""
-    later_timestamp = test_timestamp + timedelta(hours=2, minutes=30)
+def sample_option_trade(test_timestamp, call_option_instrument):
+    """Sample option trade with fixed timestamp"""
     return Trade(
-        symbol="AAPL",
-        quantity=Decimal("-100"),
-        price=Decimal("160.25"),
-        side="SELL",
-        timestamp=later_timestamp,
+        instrument=call_option_instrument,
+        quantity=Decimal("5"),
+        price=Decimal("3.50"),
+        side="BUY",
+        timestamp=test_timestamp,
         source_id="test-source",
         trade_id="test-exec-id-2",
     )
 
 
 @pytest.fixture
+def matching_trade(test_timestamp, stock_instrument):
+    """Matching stock trade with fixed timestamp + 2.5 hours"""
+    later_timestamp = test_timestamp + timedelta(hours=2, minutes=30)
+    return Trade(
+        instrument=stock_instrument,
+        quantity=Decimal("-100"),
+        price=Decimal("160.25"),
+        side="SELL",
+        timestamp=later_timestamp,
+        source_id="test-source",
+        trade_id="test-exec-id-3",
+    )
+
+
+@pytest.fixture
+def matching_option_trade(test_timestamp, call_option_instrument):
+    """Matching option trade with fixed timestamp + 2.5 hours"""
+    later_timestamp = test_timestamp + timedelta(hours=2, minutes=30)
+    return Trade(
+        instrument=call_option_instrument,
+        quantity=Decimal("-5"),
+        price=Decimal("4.50"),
+        side="SELL",
+        timestamp=later_timestamp,
+        source_id="test-source",
+        trade_id="test-exec-id-4",
+    )
+
+
+@pytest.fixture
 def mock_source(sample_trade):
     return MockTradeSource("test-source", [sample_trade])
+
+
+@pytest.fixture
+def mock_option_source(sample_option_trade):
+    return MockTradeSource("test-source", [sample_option_trade])
 
 
 @pytest.fixture
@@ -102,13 +154,4 @@ def twitter_sink():
         api_secret="test-api-secret",
         access_token="test-access-token",
         access_token_secret="test-access-token-secret",
-    )
-
-
-@pytest.fixture(autouse=True)
-def setup_logging():
-    """Set up logging for all tests"""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )

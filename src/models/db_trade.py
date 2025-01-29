@@ -1,8 +1,9 @@
-from sqlalchemy import Column, String, Numeric, DateTime, Boolean
+from sqlalchemy import Column, String, Numeric, DateTime, Boolean, Date, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from models.trade import Trade
+from models.instrument import Instrument, InstrumentType, OptionType
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, date
 from typing import cast
 
 Base = declarative_base()
@@ -13,6 +14,9 @@ class DBTrade(Base):
 
     trade_id: Column[str] = Column(String, primary_key=True)
     symbol: Column[str] = Column(String, nullable=False)
+    instrument_type: Column[str] = Column(
+        Enum(InstrumentType, name="instrument_type"), nullable=False
+    )
     quantity: Column[Decimal] = Column(Numeric, nullable=False)
     price: Column[Decimal] = Column(Numeric, nullable=False)
     side: Column[str] = Column(String, nullable=False)
@@ -20,10 +24,38 @@ class DBTrade(Base):
     source_id: Column[str] = Column(String, nullable=False)
     matched: Column[bool] = Column(Boolean, default=False)
 
+    # Option-specific fields
+    option_type: Column[str] = Column(
+        Enum(OptionType, name="option_type"), nullable=True
+    )
+    strike: Column[Decimal] = Column(Numeric, nullable=True)
+    expiry: Column[date] = Column(Date, nullable=True)
+
     def to_domain(self) -> Trade:
+        # Change the comparison to use string representation for instrument type
+        if str(self.instrument_type) == str(InstrumentType.STOCK):
+            instrument = Instrument.stock(symbol=cast(str, self.symbol))
+        else:
+            if not all(
+                x is not None
+                for x in [
+                    getattr(self, "option_type"),
+                    getattr(self, "strike"),
+                    getattr(self, "expiry"),
+                ]
+            ):
+                raise ValueError("Missing option details for option trade")
+
+            instrument = Instrument.option(
+                symbol=cast(str, self.symbol),
+                strike=Decimal(str(self.strike)),
+                expiry=cast(date, self.expiry),
+                option_type=cast(OptionType, self.option_type),
+            )
+
         return Trade(
             trade_id=cast(str, self.trade_id),
-            symbol=cast(str, self.symbol),
+            instrument=instrument,
             quantity=Decimal(str(self.quantity)),
             price=Decimal(str(self.price)),
             side=cast(str, self.side),
@@ -33,12 +65,26 @@ class DBTrade(Base):
 
     @classmethod
     def from_domain(cls, trade: Trade) -> "DBTrade":
-        return cls(
+        db_trade = cls(
             trade_id=trade.trade_id,
-            symbol=trade.symbol,
+            symbol=trade.instrument.symbol,
+            instrument_type=trade.instrument.type,
             quantity=trade.quantity,
             price=trade.price,
             side=trade.side,
             timestamp=trade.timestamp,
             source_id=trade.source_id,
         )
+
+        if trade.instrument.type == InstrumentType.OPTION:
+            if not trade.instrument.option_details:
+                raise ValueError("Missing option details for option trade")
+
+            # Use setattr to avoid type checking issues with SQLAlchemy columns
+            setattr(
+                db_trade, "option_type", trade.instrument.option_details.option_type
+            )
+            setattr(db_trade, "strike", trade.instrument.option_details.strike)
+            setattr(db_trade, "expiry", trade.instrument.option_details.expiry)
+
+        return db_trade

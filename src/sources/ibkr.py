@@ -49,7 +49,7 @@ class IBKRSource(TradeSource):
             for exec in executions:
                 if exec.timestamp >= since:
                     yield Trade(
-                        symbol=exec.symbol,
+                        instrument=exec.instrument,
                         quantity=exec.quantity,
                         price=exec.price,
                         side=exec.side,

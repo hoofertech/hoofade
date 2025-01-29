@@ -8,6 +8,7 @@ from typing import Dict
 from models.db_trade import Base
 from sources.ibkr import IBKRSource
 from sinks.twitter import TwitterSink
+from models.instrument import InstrumentType
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from config import get_source_configs, get_sink_configs, get_db_url
@@ -19,6 +20,7 @@ from dotenv import load_dotenv
 
 
 logger = logging.getLogger(__name__)
+
 
 def create_sources() -> Dict[str, TradeSource]:
     """Create trade sources from configuration"""
@@ -74,7 +76,7 @@ class TradePublisher:
 
     async def process_trades(self):
         try:
-            since = datetime.now(timezone.utc) - timedelta(minutes=15)
+            since = datetime.now(timezone.utc) - timedelta(hours=12)
 
             for source in self.sources.values():
                 async for trade in source.get_recent_trades(since):
@@ -114,14 +116,25 @@ class TradePublisher:
 
     async def find_matching_trade(self, trade: Trade) -> Optional[DBTrade]:
         """Find a matching trade for the given trade"""
-        result = await self.db.execute(
-            select(DBTrade).where(
-                DBTrade.symbol == trade.symbol,
-                DBTrade.quantity == -trade.quantity,  # Opposite quantity
-                DBTrade.matched == False,  # Not already matched # noqa: E712
-                DBTrade.source_id == trade.source_id,  # Same source
-            )
+        query = select(DBTrade).where(
+            DBTrade.symbol == trade.instrument.symbol,
+            DBTrade.instrument_type == trade.instrument.type,
+            DBTrade.quantity == -trade.quantity,  # Opposite quantity
+            DBTrade.matched == False,  # Not already matched # noqa: E712
+            DBTrade.source_id == trade.source_id,  # Same source
         )
+
+        if trade.instrument.type == InstrumentType.OPTION:
+            if not trade.instrument.option_details:
+                raise ValueError("Missing option details for option trade")
+
+            query = query.where(
+                DBTrade.option_type == trade.instrument.option_details.option_type,
+                DBTrade.strike == trade.instrument.option_details.strike,
+                DBTrade.expiry == trade.instrument.option_details.expiry,
+            )
+
+        result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
     async def run(self):
@@ -176,9 +189,9 @@ async def main():
 
 
 if __name__ == "__main__":
-    
     logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     load_dotenv(override=True)
     asyncio.run(main())

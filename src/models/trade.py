@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from models.instrument import Instrument
 
 
 @dataclass
 class Trade:
-    symbol: str
+    instrument: Instrument
     quantity: Decimal
     price: Decimal
     side: str
