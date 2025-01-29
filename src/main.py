@@ -17,7 +17,8 @@ from sinks.base import MessageSink
 from sqlalchemy import select
 from typing import Optional
 from dotenv import load_dotenv
-
+from sources.json_source import JsonSource
+from sinks.cli import CLISink
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,12 @@ def create_sources() -> Dict[str, TradeSource]:
                 portfolio_query_id=config["portfolio"]["query_id"],
                 trades_token=config["trades"]["token"],
                 trades_query_id=config["trades"]["query_id"],
+            )
+        elif config["type"] == "json":
+            logger.info(f"Creating JSON source {source_id}")
+            sources[source_id] = JsonSource(
+                source_id=config["source_id"],
+                data_dir=config.get("data_dir", "data/flex_reports"),
             )
 
     return sources
@@ -57,6 +64,9 @@ def create_sinks() -> Dict[str, MessageSink]:
                 access_token=config["access_token"],
                 access_token_secret=config["access_token_secret"],
             )
+        elif config["type"] == "cli":
+            logger.info(f"Creating CLI sink {sink_id}")
+            sinks[sink_id] = CLISink(sink_id=config["sink_id"])
 
     return sinks
 
@@ -86,6 +96,7 @@ class TradePublisher:
         except Exception as e:
             logger.error(f"Error processing trades: {str(e)}")
             await self.db.rollback()
+            raise e
 
     async def process_single_trade(self, trade):
         # Save to database using the conversion method
@@ -151,6 +162,7 @@ class TradePublisher:
                 finally:
                     await source.disconnect()
 
+            exit(0)
             await asyncio.sleep(900)  # Sleep for 15 minutes
 
 

@@ -24,6 +24,14 @@ def get_source_configs() -> Dict[str, Dict[str, Any]]:
             },
         }
 
+    # JSON Source (for testing)
+    if os.getenv("JSON_SOURCE_ENABLED", "false").lower() == "true":
+        sources["json"] = {
+            "type": "json",
+            "source_id": "json-source",
+            "data_dir": os.getenv("JSON_SOURCE_DATA_DIR", "data/flex_reports"),
+        }
+
     return sources
 
 
@@ -41,6 +49,13 @@ def get_sink_configs() -> Dict[str, Dict[str, Any]]:
             "api_secret": os.getenv("TWITTER_API_SECRET"),
             "access_token": os.getenv("TWITTER_ACCESS_TOKEN"),
             "access_token_secret": os.getenv("TWITTER_ACCESS_TOKEN_SECRET"),
+        }
+
+    # CLI
+    if os.getenv("CLI_ENABLED", "false").lower() == "true":
+        sinks["cli"] = {
+            "type": "cli",
+            "sink_id": "cli-output",
         }
 
     return sinks

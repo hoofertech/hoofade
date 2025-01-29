@@ -6,6 +6,8 @@ import logging
 import pandas as pd
 from models.instrument import Instrument, OptionType
 from ib_insync import FlexReport
+from pathlib import Path
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +38,55 @@ class Execution:
 
 class FlexClient:
     def __init__(
-        self, portfolio_config: FlexQueryConfig, trades_config: FlexQueryConfig
+        self,
+        portfolio_config: FlexQueryConfig,
+        trades_config: FlexQueryConfig,
+        save_dir: str = "data/flex_reports",
     ):
         self.portfolio_config = portfolio_config
         self.trades_config = trades_config
+        self.save_dir = Path(save_dir)
+        self.save_dir.mkdir(parents=True, exist_ok=True)
+
+    def _save_report(self, report: FlexReport, query_type: str) -> None:
+        """Save the raw XML and parsed DataFrame to files"""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # Save raw XML
+        xml_path = self.save_dir / f"{query_type}_{timestamp}.xml"
+        report.save(str(xml_path))
+
+        # Save parsed DataFrames
+        data = {}
+        for topic in report.topics():
+            df = report.df(topic)
+            if df is not None and not df.empty:
+                data[topic] = df.to_dict(orient="records")
+
+        json_path = self.save_dir / f"{query_type}_{timestamp}.json"
+        with open(json_path, "w") as f:
+            json.dump(data, f, default=str)
+
+    def _download_flex_report(self, token: str, query_id: str) -> FlexReport:
+        try:
+            logger.info(f"Downloading Flex report: {token} {query_id}")
+            report = FlexReport(token=token, queryId=query_id)
+            report.download(token, query_id)
+
+            logger.info(f"token: {token}")
+            logger.info(f"portfolio_config.token: {self.portfolio_config.token}")
+            logger.info(f"trades_config.token: {self.trades_config.token}")
+
+            # Save the report
+            query_type = (
+                "portfolio" if query_id == self.portfolio_config.query_id else "trades"
+            )
+            self._save_report(report, query_type)
+
+            return report
+        except Exception as e:
+            logger.error(f"Failed to download Flex report: {str(e)}")
+            raise
 
     async def get_positions(self) -> List[Position]:
         report = self._download_flex_report(
@@ -53,17 +100,6 @@ class FlexClient:
         )
         logger.info(f"Report: {report.df('TradeConfirm')}")
         return self._parse_executions(report)
-
-    def _download_flex_report(self, token: str, query_id: str) -> FlexReport:
-        """Download flex report synchronously"""
-        try:
-            logger.info(f"Downloading Flex report: {token} {query_id}")
-            report = FlexReport(token=token, queryId=query_id)
-            report.download(token, query_id)  # Synchronous call
-            return report
-        except Exception as e:
-            logger.error(f"Failed to download Flex report: {str(e)}")
-            raise
 
     def _parse_positions(self, report: FlexReport) -> List[Position]:
         df = report.df("Position")
