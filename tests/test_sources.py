@@ -237,10 +237,8 @@ async def test_ibkr_source_get_stock_trades(mock_flex_report, test_timestamp):
         trades_query_id="456",
     )
 
-    since = test_timestamp - timedelta(days=1)
-    trades = [trade async for trade in source.get_recent_trades(since)]
+    trades = [trade async for trade in source.get_last_day_trades()]
 
-    logger.info(f"Trades: {trades}")
     assert len(trades) == 2  # One stock trade and one option trade
 
     # Verify stock trade
@@ -261,8 +259,7 @@ async def test_ibkr_source_get_option_trades(mock_flex_report, test_timestamp):
         trades_query_id="456",
     )
 
-    since = test_timestamp - timedelta(days=1)
-    trades = [trade async for trade in source.get_recent_trades(since)]
+    trades = [trade async for trade in source.get_last_day_trades()]
 
     # Verify option trade
     option_trade = next(t for t in trades if t.instrument.type == InstrumentType.OPTION)
@@ -286,8 +283,7 @@ async def test_ibkr_source_empty_trades(mock_empty_flex_report, test_timestamp):
         trades_query_id="456",
     )
 
-    since = test_timestamp - timedelta(days=1)
-    trades = [trade async for trade in source.get_recent_trades(since)]
+    trades = [trade async for trade in source.get_last_day_trades()]
     assert len(trades) == 0
 
 
@@ -303,8 +299,7 @@ async def test_ibkr_source_invalid_trade_data(
         trades_query_id="456",
     )
 
-    since = test_timestamp - timedelta(days=1)
-    trades = [trade async for trade in source.get_recent_trades(since)]
+    trades = [trade async for trade in source.get_last_day_trades()]
     assert len(trades) == 0  # Invalid trades should be skipped
 
 
@@ -320,8 +315,7 @@ async def test_ibkr_source_invalid_option_data(
         trades_query_id="456",
     )
 
-    since = test_timestamp - timedelta(days=1)
-    trades = [trade async for trade in source.get_recent_trades(since)]
+    trades = [trade async for trade in source.get_last_day_trades()]
     assert len(trades) == 0  # Invalid option trades should be skipped
 
 

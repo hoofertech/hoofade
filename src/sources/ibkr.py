@@ -4,6 +4,8 @@ import logging
 from models.trade import Trade
 from sources.base import TradeSource
 import asyncio
+from .ibkr_parser import ParsedExecution
+from typing import List
 
 # Set up event loop
 try:
@@ -47,9 +49,12 @@ class IBKRSource(TradeSource):
             logger.error(f"Failed to connect to IBKR Flex: {str(e)}")
             return False
 
-    async def get_recent_trades(self, since: datetime) -> AsyncIterator[Trade]:
+    async def get_last_day_trades(self) -> AsyncIterator[Trade]:
         try:
             executions = await self.flex_client.get_executions()
+            if not executions:
+                return
+            since = self.get_min_datetime_for_last_day(executions)
             for exec in executions:
                 if exec.timestamp >= since:
                     yield Trade(
@@ -65,6 +70,11 @@ class IBKRSource(TradeSource):
         except Exception as e:
             logger.error(f"Error fetching trades: {str(e)}")
 
+    @staticmethod
+    def get_min_datetime_for_last_day(executions: List[ParsedExecution]) -> datetime:
+        last_day_in_data = max(exec.timestamp for exec in executions)
+        return last_day_in_data.replace(hour=0, minute=0, second=0, microsecond=0)
+    
     async def disconnect(self) -> None:
         # No cleanup needed for Flex API
         pass

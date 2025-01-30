@@ -9,10 +9,9 @@ from decimal import Decimal
 async def test_end_to_end_flow(test_timestamp, mock_source, mock_sink):
     # Setup
     formatter = TradeFormatter()
-    since = test_timestamp - timedelta(minutes=15)
 
     # Process trade from source
-    trades = [trade async for trade in mock_source.get_recent_trades(since)]
+    trades = [trade async for trade in mock_source.get_last_day_trades()]
     assert len(trades) == 1
 
     # Format trade
@@ -38,10 +37,9 @@ async def test_end_to_end_flow_with_matching_trade(
 
     # Setup
     formatter = TradeFormatter()
-    since = test_timestamp - timedelta(minutes=15)
 
     # Process trades from source
-    trades = [trade async for trade in mock_source.get_recent_trades(since)]
+    trades = [trade async for trade in mock_source.get_last_day_trades()]
     assert len(trades) == 2
 
     # Format and publish second trade (which closes the position)
@@ -78,10 +76,9 @@ async def test_end_to_end_flow_with_option_trade(
 
     # Setup
     formatter = TradeFormatter()
-    since = test_timestamp - timedelta(minutes=15)
 
     # Process trade from source
-    trades = [trade async for trade in mock_source.get_recent_trades(since)]
+    trades = [trade async for trade in mock_source.get_last_day_trades()]
     assert len(trades) == 1
 
     # Format trade

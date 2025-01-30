@@ -14,8 +14,8 @@ class TradeSource(ABC):
         pass
 
     @abstractmethod
-    def get_recent_trades(self, since: datetime) -> AsyncIterator[Trade]:
-        """Get trades since the specified timestamp"""
+    def get_last_day_trades(self) -> AsyncIterator[Trade]:
+        """Get trades for the last day"""
         pass
 
     @abstractmethod

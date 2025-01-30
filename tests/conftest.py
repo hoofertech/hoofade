@@ -18,10 +18,9 @@ class MockTradeSource(TradeSource):
     async def connect(self) -> bool:
         return True
 
-    async def get_recent_trades(self, since: datetime) -> AsyncIterator[Trade]:
+    async def get_last_day_trades(self) -> AsyncIterator[Trade]:
         for trade in self.trades:
-            if trade.timestamp >= since:
-                yield trade
+            yield trade
 
     async def disconnect(self) -> None:
         pass
