@@ -69,10 +69,10 @@ class TradeFormatter:
         expiry = instrument.option_details.expiry.strftime("%d %b %Y")
         strike = instrument.option_details.strike
         option_type = (
-            "📞" if instrument.option_details.option_type == OptionType.CALL else "📝"
+            "C" if instrument.option_details.option_type == OptionType.CALL else "P"
         )
 
-        return f"${instrument.symbol} {expiry} ${strike} {option_type}"
+        return f"${instrument.symbol} {expiry} ${strike}{option_type}"
 
     def _format_hold_time(self, delta) -> str:
         days = delta.days
