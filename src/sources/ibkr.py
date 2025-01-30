@@ -25,6 +25,7 @@ class IBKRSource(TradeSource):
         portfolio_query_id: str,
         trades_token: str,
         trades_query_id: str,
+        save_dir: str | None = None,
     ):
         super().__init__(source_id)
         self.flex_client = FlexClient(
@@ -32,6 +33,7 @@ class IBKRSource(TradeSource):
                 token=portfolio_token, query_id=portfolio_query_id
             ),
             trades_config=FlexQueryConfig(token=trades_token, query_id=trades_query_id),
+            save_dir=save_dir,
         )
 
     async def connect(self) -> bool:

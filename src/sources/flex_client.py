@@ -41,14 +41,20 @@ class FlexClient:
         self,
         portfolio_config: FlexQueryConfig,
         trades_config: FlexQueryConfig,
-        save_dir: str = "data/flex_reports",
+        save_dir: str | None = None,
     ):
         self.portfolio_config = portfolio_config
         self.trades_config = trades_config
-        self.save_dir = Path(save_dir)
-        self.save_dir.mkdir(parents=True, exist_ok=True)
+        self.save_dir = save_dir
 
     def _save_report(self, report: FlexReport, query_type: str) -> None:
+        """Save the raw XML and parsed DataFrame to files"""
+        if not self.save_dir:
+            return
+
+        out_save_dir = Path(self.save_dir)
+        out_save_dir.mkdir(parents=True, exist_ok=True)
+
         """Save the raw XML and parsed DataFrame to files"""
         # Extract timestamp from the XML file's whenGenerated attribute
         when_generated = None
@@ -66,7 +72,7 @@ class FlexClient:
             logger.warning("Could not find whenGenerated in XML, using current time")
 
         # Save XML file
-        xml_path = self.save_dir / f"{query_type}_{timestamp}.xml"
+        xml_path = out_save_dir / f"{query_type}_{timestamp}.xml"
         logger.info(f"saving xml to {xml_path}")
         report.save(str(xml_path))
 
@@ -77,7 +83,7 @@ class FlexClient:
             if df is not None and not df.empty:
                 data[topic] = df.to_dict(orient="records")
 
-        json_path = self.save_dir / f"{query_type}_{timestamp}.json"
+        json_path = out_save_dir / f"{query_type}_{timestamp}.json"
         logger.info(f"saving json to {json_path}")
         with open(json_path, "w") as f:
             json.dump(data, f, default=str)
