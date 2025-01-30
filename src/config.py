@@ -30,11 +30,11 @@ def get_source_configs() -> Dict[str, Dict[str, Any]]:
         }
 
     # JSON Source (for testing)
-    if os.getenv("JSON_SOURCE_ENABLED", "false").lower() == "true":
+    if os.getenv("IBKR0_JSON_SOURCE_ENABLED", "false").lower() == "true":
         sources["json"] = {
             "type": "json",
             "source_id": "json-source",
-            "data_dir": os.getenv("JSON_SOURCE_DATA_DIR", "data/flex_reports"),
+            "data_dir": os.getenv("IBKR0_JSON_SOURCE_DATA_DIR", "data/flex_reports"),
         }
 
     return sources

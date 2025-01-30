@@ -5,7 +5,7 @@ import logging
 from ib_insync import FlexReport
 from pathlib import Path
 import json
-from .parser import FlexReportParser, ParsedPosition, ParsedExecution
+from .ibkr_parser import FlexReportParser, ParsedPosition, ParsedExecution
 
 logger = logging.getLogger(__name__)
 

@@ -17,7 +17,7 @@ from sinks.base import MessageSink
 from sqlalchemy import select
 from typing import Optional
 from dotenv import load_dotenv
-from sources.json_source import JsonSource
+from sources.ibkr_json_source import JsonSource
 from sinks.cli import CLISink
 
 logger = logging.getLogger(__name__)

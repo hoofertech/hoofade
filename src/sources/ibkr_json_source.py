@@ -5,7 +5,7 @@ import logging
 from models.trade import Trade
 from models.position import Position
 from .base import TradeSource
-from .parser import FlexReportParser
+from .ibkr_parser import FlexReportParser
 
 logger = logging.getLogger(__name__)
 
