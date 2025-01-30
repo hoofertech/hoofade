@@ -100,8 +100,8 @@ async def test_cli_sink_option_trade(cli_sink, json_source, trade_formatter, cap
     logger.info("captured.out: %s", captured.out)
     assert "Buy" in captured.out
     assert "$NVDA" in captured.out
-    assert "18-Jul-2025" in captured.out
-    assert "100P" in captured.out
+    assert "18JUL2025" in captured.out
+    assert "100 P" in captured.out
     assert "1111" in captured.out
     assert "$4.37" in captured.out
 
@@ -201,7 +201,7 @@ async def test_cli_sink_real_trades(cli_sink, json_source, trade_formatter, caps
     # Verify opening trade
     assert "Buy" in output
     assert "$META" in output
-    assert "715C" in output
+    assert "715 C" in output
     assert "222" in output
     assert "$9.20" in output
 

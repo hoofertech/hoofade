@@ -94,7 +94,7 @@ async def test_end_to_end_flow_with_option_trade(
     # Verify message content
     published_message = mock_sink.messages[0]
     assert "$AAPL" in published_message.content
-    assert "15-Jun-2024" in published_message.content
-    assert "$150C" in published_message.content
+    assert "15JUN2024" in published_message.content
+    assert "$150 C" in published_message.content
     assert "666" in published_message.content
     assert "$3.50" in published_message.content

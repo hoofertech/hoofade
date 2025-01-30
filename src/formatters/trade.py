@@ -68,13 +68,13 @@ class TradeFormatter:
         if not instrument.option_details:
             raise ValueError("Option details missing for option instrument")
 
-        expiry = instrument.option_details.expiry.strftime("%d-%b-%Y")
+        expiry = instrument.option_details.expiry.strftime("%d%b%Y").upper()
         strike = instrument.option_details.strike
         option_type = (
             "C" if instrument.option_details.option_type == OptionType.CALL else "P"
         )
 
-        return f"${instrument.symbol}/{expiry}@{currency_symbol}{strike}{option_type}"
+        return f"${instrument.symbol} {expiry} {currency_symbol}{strike} {option_type}"
 
     def _format_hold_time(self, delta) -> str:
         days = delta.days

@@ -77,7 +77,7 @@ def test_format_new_stock_trade(formatter, stock_trade):
 def test_format_new_call_option_trade(formatter, call_option_trade):
     message = formatter.format_trade(call_option_trade)
 
-    expected_content = "🚨 Buy $AAPL/15-Jun-2024@$150C: 5@$3.50"
+    expected_content = "🚨 Buy $AAPL 15JUN2024 $150 C: 5@$3.50"
 
     assert message.content == expected_content
     assert message.timestamp == call_option_trade.timestamp
@@ -117,6 +117,6 @@ def test_format_closed_option_position_loss(formatter, call_option_trade):
 
     message = formatter.format_trade(matching_trade, call_option_trade)
 
-    assert "$AAPL/15-Jun-2024@$150C" in message.content
+    assert "$AAPL 15JUN2024 $150 C" in message.content
     assert "28.57%" in message.content
     assert "1 day" in message.content
