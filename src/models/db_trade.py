@@ -20,6 +20,7 @@ class DBTrade(Base):
     quantity: Column[Decimal] = Column(Numeric, nullable=False)
     price: Column[Decimal] = Column(Numeric, nullable=False)
     side: Column[str] = Column(String, nullable=False)
+    currency: Column[str] = Column(String, nullable=False)
     timestamp: Column[datetime] = Column(DateTime, nullable=False)
     source_id: Column[str] = Column(String, nullable=False)
     matched: Column[bool] = Column(Boolean, default=False)
@@ -61,6 +62,7 @@ class DBTrade(Base):
             side=cast(str, self.side),
             timestamp=cast(datetime, self.timestamp),
             source_id=cast(str, self.source_id),
+            currency=cast(str, self.currency),
         )
 
     @classmethod
@@ -72,6 +74,7 @@ class DBTrade(Base):
             quantity=trade.quantity,
             price=trade.price,
             side=trade.side,
+            currency=trade.currency,
             timestamp=trade.timestamp,
             source_id=trade.source_id,
         )

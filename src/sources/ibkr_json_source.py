@@ -63,6 +63,7 @@ class JsonSource(TradeSource):
                         instrument=exec.instrument,
                         quantity=exec.quantity,
                         price=exec.price,
+                        currency=exec.currency,
                         side=exec.side,
                         timestamp=exec.timestamp,
                         source_id=self.source_id,

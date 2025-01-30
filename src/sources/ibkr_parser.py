@@ -17,6 +17,7 @@ class ParsedPosition:
     quantity: Decimal
     cost_basis: Decimal
     market_price: Decimal
+    currency: str
 
 
 @dataclass
@@ -27,6 +28,7 @@ class ParsedExecution:
     side: str
     timestamp: datetime
     exec_id: str
+    currency: str
 
 
 class FlexReportParser:
@@ -134,6 +136,7 @@ class FlexReportParser:
                         quantity=Decimal(str(item_dict.get("position", "0"))),
                         cost_basis=Decimal(str(item_dict.get("costBasisPrice", "0"))),
                         market_price=Decimal(str(item_dict.get("markPrice", "0"))),
+                        currency=str(item_dict.get("currency", "USD")),
                     )
                 )
             except Exception as e:
@@ -184,6 +187,7 @@ class FlexReportParser:
                         side="BUY" if quantity > 0 else "SELL",
                         timestamp=trade_time,
                         exec_id=str(item_dict["tradeID"]),
+                        currency=str(item_dict["currency"]),
                     )
                 )
             except Exception as e:

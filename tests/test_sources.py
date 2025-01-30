@@ -29,6 +29,7 @@ def mock_empty_flex_report():
             "putCall": [],
             "strike": [],
             "expiry": [],
+            "currency": [],
         }
         positions_df = pd.DataFrame(positions_data)
 
@@ -43,6 +44,7 @@ def mock_empty_flex_report():
             "putCall": [],
             "strike": [],
             "expiry": [],
+            "currency": [],
         }
         trades_df = pd.DataFrame(trades_data)
 
@@ -82,6 +84,7 @@ def mock_flex_report(test_timestamp):
             "putCall": [None, "C"],
             "strike": [None, 150.00],
             "expiry": [None, "20240615"],
+            "currency": ["USD", "USD"],
         }
         positions_df = pd.DataFrame(positions_data)
 
@@ -99,6 +102,7 @@ def mock_flex_report(test_timestamp):
             "putCall": [None, "C"],
             "strike": [None, 150.00],
             "expiry": [None, "20240615"],
+            "currency": ["USD", "USD"],
         }
         trades_df = pd.DataFrame(trades_data)
 
@@ -144,6 +148,7 @@ def mock_flex_report_invalid_trades(test_timestamp):
             "putCall": [None],
             "strike": [None],
             "expiry": [None],
+            "currency": ["USD"],
         }
         trades_df = pd.DataFrame(invalid_trades_data)
 
@@ -189,6 +194,7 @@ def mock_flex_report_invalid_options(test_timestamp):
             "putCall": ["C"],
             "strike": ["invalid"],  # Invalid strike price
             "expiry": ["20240615"],
+            "currency": ["USD"],
         }
         trades_df = pd.DataFrame(invalid_option_data)
 
@@ -234,6 +240,7 @@ async def test_ibkr_source_get_stock_trades(mock_flex_report, test_timestamp):
     since = test_timestamp - timedelta(days=1)
     trades = [trade async for trade in source.get_recent_trades(since)]
 
+    logger.info(f"Trades: {trades}")
     assert len(trades) == 2  # One stock trade and one option trade
 
     # Verify stock trade

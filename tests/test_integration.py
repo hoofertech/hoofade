@@ -71,6 +71,7 @@ async def test_end_to_end_flow_with_option_trade(
         timestamp=test_timestamp,
         source_id="test-source",
         trade_id="test-option-exec-1",
+        currency="USD",
     )
 
     mock_source.trades = [option_trade]

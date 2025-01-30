@@ -49,6 +49,7 @@ async def test_cli_sink_stock_trade(cli_sink, json_source, trade_formatter, caps
         timestamp=datetime.now(timezone.utc),
         source_id="test-source",
         trade_id="test-trade-1",
+        currency="USD",
     )
 
     # Format trade using formatter
@@ -85,6 +86,7 @@ async def test_cli_sink_option_trade(cli_sink, json_source, trade_formatter, cap
         timestamp=datetime.now(timezone.utc),
         source_id="test-source",
         trade_id="test-trade-2",
+        currency="USD",
     )
 
     # Format trade using formatter
@@ -119,6 +121,7 @@ async def test_cli_sink_closing_trade(cli_sink, json_source, trade_formatter, ca
         timestamp=datetime.now(timezone.utc) - timedelta(hours=2),
         source_id="test-source",
         trade_id="test-trade-3",
+        currency="USD",
     )
 
     # Create closing trade
@@ -130,6 +133,7 @@ async def test_cli_sink_closing_trade(cli_sink, json_source, trade_formatter, ca
         timestamp=datetime.now(timezone.utc),
         source_id="test-source",
         trade_id="test-trade-4",
+        currency="USD",
     )
 
     # Format trade using formatter with matching trade
@@ -167,6 +171,7 @@ async def test_cli_sink_real_trades(cli_sink, json_source, trade_formatter, caps
         timestamp=datetime(2025, 1, 29, 11, 23, 9, tzinfo=timezone.utc),
         source_id="test-source",
         trade_id="466919725",
+        currency="USD",
     )
 
     closing_trade = Trade(
@@ -177,6 +182,7 @@ async def test_cli_sink_real_trades(cli_sink, json_source, trade_formatter, caps
         timestamp=datetime(2025, 1, 29, 15, 10, 39, tzinfo=timezone.utc),
         source_id="test-source",
         trade_id="467074826",
+        currency="USD",
     )
 
     # Format and publish opening trade

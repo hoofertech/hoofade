@@ -9,6 +9,7 @@ class Trade:
     instrument: Instrument
     quantity: Decimal
     price: Decimal
+    currency: str
     side: str
     timestamp: datetime
     source_id: str
