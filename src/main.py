@@ -87,9 +87,9 @@ class TradePublisher:
     async def process_trades(self):
         try:
             for source in self.sources.values():
-                logger.info(f"Processing trades from {source.source_id}")
+                logger.debug(f"Processing trades from {source.source_id}")
                 async for trade in source.get_last_day_trades():
-                    logger.info(
+                    logger.debug(
                         f"Processing trade {trade.trade_id} from {source.source_id}"
                     )
                     await self.process_single_trade(trade)
@@ -116,7 +116,7 @@ class TradePublisher:
         for sink in self.sinks.values():
             if sink.can_publish():
                 if await sink.publish(message):
-                    logger.info(f"Published trade {trade.trade_id} to {sink.sink_id}")
+                    logger.debug(f"Published trade {trade.trade_id} to {sink.sink_id}")
                 else:
                     logger.warning(
                         f"Failed to publish trade {trade.trade_id} to {sink.sink_id}"

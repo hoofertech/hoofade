@@ -38,17 +38,18 @@ class PortfolioFormatter:
 
         # Format stock positions
         if stock_positions:
-            stock_content = "📈 Stock Positions:\n"
+            stock_content = "📊 Stocks:"
             for pos in stock_positions:
                 currency = pos.instrument.currency
                 currency_symbol = (
                     "$" if currency == "USD" else "€" if currency == "EUR" else "¥"
                 )
-                stock_content += f"${pos.instrument.symbol}: {int(abs(pos.quantity))}@{currency_symbol}{pos.market_price}\n"
+                sign = "-" if pos.quantity < 0 else "+"
+                stock_content += f"\n${pos.instrument.symbol}: {sign}{int(abs(pos.quantity))}@{currency_symbol}{pos.market_price}"
 
             messages.append(
                 Message(
-                    content=stock_content.strip(),
+                    content=stock_content,
                     timestamp=timestamp,
                     metadata={"type": "stock_portfolio"},
                 )
@@ -56,39 +57,32 @@ class PortfolioFormatter:
 
         # Format option positions
         if option_positions:
-            option_content = "🎯 Option Positions:\n"
-            current_expiry = None
-
+            option_content = "🎯 Options:"
             for pos in option_positions:
                 if not pos.instrument.option_details:
                     continue
-
-                expiry = pos.instrument.option_details.expiry
-                if current_expiry != expiry:
-                    if current_expiry is not None:
-                        option_content += "\n"
-                    current_expiry = expiry
-                    option_content += f"{expiry.strftime('%d%b%Y').upper()}:\n"
 
                 currency = pos.instrument.currency
                 currency_symbol = (
                     "$" if currency == "USD" else "€" if currency == "EUR" else "¥"
                 )
                 strike = pos.instrument.option_details.strike
+                expiry = pos.instrument.option_details.expiry.strftime("%d%b%y").upper()
                 option_type = (
                     "C"
                     if pos.instrument.option_details.option_type == OptionType.CALL
                     else "P"
                 )
+                sign = "-" if pos.quantity < 0 else "+"
 
                 option_content += (
-                    f"${pos.instrument.symbol} {currency_symbol}{strike}{option_type}: "
-                    f"{int(abs(pos.quantity))}@{currency_symbol}{pos.market_price}\n"
+                    f"\n${pos.instrument.symbol} {expiry} {currency_symbol}{strike}{option_type}: "
+                    f"{sign}{int(abs(pos.quantity))}@{currency_symbol}{pos.market_price}"
                 )
 
             messages.append(
                 Message(
-                    content=option_content.strip(),
+                    content=option_content,
                     timestamp=timestamp,
                     metadata={"type": "option_portfolio"},
                 )

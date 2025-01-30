@@ -16,7 +16,7 @@ class CLISink(MessageSink):
     async def publish(self, message: Message) -> bool:
         try:
             print(
-                f"\n[{message.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] {message.content}"
+                f"[{message.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] {message.content}"
             )
             return True
         except Exception as e:
