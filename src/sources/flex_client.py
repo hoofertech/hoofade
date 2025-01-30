@@ -1,13 +1,11 @@
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
 from typing import List
 import logging
-import pandas as pd
-from models.instrument import Instrument, OptionType
 from ib_insync import FlexReport
 from pathlib import Path
 import json
+from .parser import FlexReportParser, ParsedPosition, ParsedExecution
 
 logger = logging.getLogger(__name__)
 
@@ -19,64 +17,42 @@ class FlexQueryConfig:
 
 
 @dataclass
-class Position:
-    symbol: str
-    quantity: Decimal
-    cost_basis: Decimal
-    market_price: Decimal
-
-
-@dataclass
-class Execution:
-    instrument: Instrument
-    quantity: Decimal
-    price: Decimal
-    side: str
-    timestamp: datetime
-    exec_id: str
+class FlexClientConfig:
+    portfolio: FlexQueryConfig
+    trades: FlexQueryConfig
+    save_dir: str | None = None
 
 
 class FlexClient:
     def __init__(
         self,
-        portfolio_config: FlexQueryConfig,
-        trades_config: FlexQueryConfig,
-        save_dir: str | None = None,
+        config: FlexClientConfig,
     ):
-        self.portfolio_config = portfolio_config
-        self.trades_config = trades_config
-        self.save_dir = save_dir
+        self.config = config
+        self.parser = FlexReportParser()
 
     def _save_report(self, report: FlexReport, query_type: str) -> None:
         """Save the raw XML and parsed DataFrame to files"""
-        if not self.save_dir:
+        if not self.config.save_dir:
             return
 
-        out_save_dir = Path(self.save_dir)
+        out_save_dir = Path(self.config.save_dir)
         out_save_dir.mkdir(parents=True, exist_ok=True)
-
-        """Save the raw XML and parsed DataFrame to files"""
-        # Extract timestamp from the XML file's whenGenerated attribute
-        when_generated = None
         flex_statement = report.root.find(".//FlexStatement")
-
-        if flex_statement is not None:
-            when_generated = flex_statement.get("whenGenerated")
-
-        if when_generated:
-            # Convert YYYYMMDD;HHMMSS to YYYYMMDD_HHMMSS
-            timestamp = when_generated.replace(";", "_")
-        else:
-            # Fallback to current time if whenGenerated is not found
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            logger.warning("Could not find whenGenerated in XML, using current time")
+        when_generated = (
+            flex_statement.get("whenGenerated") if flex_statement is not None else None
+        )
+        timestamp = (
+            when_generated.replace(";", "_")
+            if when_generated
+            else datetime.now().strftime("%Y%m%d_%H%M%S")
+        )
 
         # Save XML file
         xml_path = out_save_dir / f"{query_type}_{timestamp}.xml"
-        logger.info(f"saving xml to {xml_path}")
         report.save(str(xml_path))
 
-        # Save parsed DataFrames
+        # Save parsed DataFrames as JSON
         data = {}
         for topic in report.topics():
             df = report.df(topic)
@@ -84,127 +60,43 @@ class FlexClient:
                 data[topic] = df.to_dict(orient="records")
 
         json_path = out_save_dir / f"{query_type}_{timestamp}.json"
-        logger.info(f"saving json to {json_path}")
         with open(json_path, "w") as f:
             json.dump(data, f, default=str)
 
         logger.info(f"Saved {query_type} report to {xml_path} and {json_path}")
 
-    def _download_flex_report(self, token: str, query_id: str) -> FlexReport:
+    async def get_positions(self) -> List[ParsedPosition]:
+        """Get current positions"""
         try:
-            logger.info(f"Downloading Flex report: {token} {query_id}")
-            report = FlexReport(token=token, queryId=query_id)
-            report.download(token, query_id)
-
-            logger.info(f"token: {token}")
-            logger.info(f"portfolio_config.token: {self.portfolio_config.token}")
-            logger.info(f"trades_config.token: {self.trades_config.token}")
-            print(f"report: {report}")
+            report = FlexReport(
+                token=self.config.portfolio.token,
+                queryId=self.config.portfolio.query_id,
+            )
+            report.download(self.config.portfolio.token, self.config.portfolio.query_id)
 
             if not report.data:
                 logger.error("No data received from IBKR Flex API")
-                raise Exception("No data received from IBKR Flex API")
+                return []
 
-            logger.info(f"Available topics in report: {report.topics()}")
-
-            # Save the report
-            query_type = (
-                "portfolio" if query_id == self.portfolio_config.query_id else "trades"
-            )
-            self._save_report(report, query_type)
-
-            return report
+            self._save_report(report, "portfolio")
+            return self.parser.parse_positions_from_df(report.df("Position"))
         except Exception as e:
-            logger.error(f"Failed to download Flex report: {str(e)}")
-            raise
-
-    async def get_positions(self) -> List[Position]:
-        report = self._download_flex_report(
-            self.portfolio_config.token, self.portfolio_config.query_id
-        )
-        return self._parse_positions(report)
-
-    async def get_executions(self) -> List[Execution]:
-        report = self._download_flex_report(
-            self.trades_config.token, self.trades_config.query_id
-        )
-        logger.info(f"Report: {report.df('TradeConfirm')}")
-        return self._parse_executions(report)
-
-    def _parse_positions(self, report: FlexReport) -> List[Position]:
-        df = report.df("Position")
-        if df is None or df.empty:
+            logger.error(f"Error fetching positions: {str(e)}")
             return []
 
-        positions = []
-        for _, row in df.iterrows():
-            positions.append(
-                Position(
-                    symbol=str(row["symbol"]),
-                    quantity=Decimal(str(row["position"])),
-                    cost_basis=Decimal(str(row["costBasis"])),
-                    market_price=Decimal(str(row["markPrice"])),
-                )
+    async def get_executions(self) -> List[ParsedExecution]:
+        """Get trade executions"""
+        try:
+            report = FlexReport(
+                token=self.config.trades.token, queryId=self.config.trades.query_id
             )
-        return positions
+            report.download(self.config.trades.token, self.config.trades.query_id)
+            if not report.data:
+                logger.error("No data received from IBKR Flex API")
+                return []
 
-    def _parse_executions(self, report: FlexReport) -> List[Execution]:
-        df = report.df("TradeConfirm")
-        if df is None or len(df.index) == 0:  # Changed from df.empty
+            self._save_report(report, "trades")
+            return self.parser.parse_executions_from_df(report.df("TradeConfirm"))
+        except Exception as e:
+            logger.error(f"Error fetching executions: {str(e)}")
             return []
-
-        executions = []
-        for _, row in df.iterrows():
-            try:
-                trade_datetime = pd.to_datetime(str(row["dateTime"]), utc=True)
-                if pd.isna(trade_datetime):
-                    logger.warning(f"Invalid datetime for trade: {row['tradeID']}")
-                    continue
-
-                # Parse instrument details
-                symbol = str(row["symbol"])
-
-                # Check if this is an option trade by checking putCall column
-                put_call_value = row.get("putCall")
-                is_option = isinstance(put_call_value, str) and put_call_value.strip()
-
-                if is_option:  # This is an option
-                    try:
-                        expiry = pd.to_datetime(str(row["expiry"])).date()
-                        strike = Decimal(str(row["strike"]))
-                        option_type = (
-                            OptionType.CALL
-                            if str(put_call_value).upper() == "C"
-                            else OptionType.PUT
-                        )
-                        instrument = Instrument.option(
-                            symbol=symbol,
-                            strike=strike,
-                            expiry=expiry,
-                            option_type=option_type,
-                        )
-                    except (ValueError, TypeError) as e:
-                        logger.warning(
-                            f"Invalid option data for trade {row['tradeID']}: {e}"
-                        )
-                        continue
-                else:  # This is a stock
-                    instrument = Instrument.stock(symbol=symbol)
-
-                executions.append(
-                    Execution(
-                        instrument=instrument,
-                        quantity=Decimal(str(abs(row["quantity"]))),
-                        price=Decimal(str(row["price"])),
-                        side="BUY" if float(row["quantity"]) > 0 else "SELL",
-                        timestamp=trade_datetime,
-                        exec_id=str(row["tradeID"]),
-                    )
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Error processing trade {row.get('tradeID', 'unknown')}: {e}"
-                )
-                continue
-
-        return executions

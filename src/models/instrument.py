@@ -34,8 +34,10 @@ class Instrument:
 
     @classmethod
     def option(
-        cls, symbol: str, strike: Decimal, expiry: date, option_type: OptionType
+        cls, symbol: str, strike: Decimal, expiry: date | None, option_type: OptionType
     ) -> "Instrument":
+        if expiry is None:
+            raise ValueError("Expiry is required for options")
         return cls(
             symbol=symbol,
             type=InstrumentType.OPTION,

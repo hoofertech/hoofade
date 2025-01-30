@@ -12,7 +12,7 @@ except RuntimeError:
     _event_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(_event_loop)
 
-from .flex_client import FlexClient, FlexQueryConfig
+from .flex_client import FlexClient, FlexQueryConfig, FlexClientConfig
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +29,13 @@ class IBKRSource(TradeSource):
     ):
         super().__init__(source_id)
         self.flex_client = FlexClient(
-            portfolio_config=FlexQueryConfig(
-                token=portfolio_token, query_id=portfolio_query_id
-            ),
-            trades_config=FlexQueryConfig(token=trades_token, query_id=trades_query_id),
-            save_dir=save_dir,
+            FlexClientConfig(
+                portfolio=FlexQueryConfig(
+                    token=portfolio_token, query_id=portfolio_query_id
+                ),
+                trades=FlexQueryConfig(token=trades_token, query_id=trades_query_id),
+                save_dir=save_dir,
+            )
         )
 
     async def connect(self) -> bool:
