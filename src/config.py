@@ -9,6 +9,10 @@ def get_source_configs() -> Dict[str, Dict[str, Any]]:
     """Get configurations for all trade sources"""
     sources = {}
 
+    save_reports_dir = None
+    if os.getenv("IBKR1_SAVE_REPORTS", "false").lower() == "true":
+        save_reports_dir = "data/flex_reports"
+
     # IBKR Account 1
     if os.getenv("IBKR1_ENABLED", "false").lower() == "true":
         sources["ibkr1"] = {
@@ -22,6 +26,7 @@ def get_source_configs() -> Dict[str, Dict[str, Any]]:
                 "token": os.getenv("IBKR1_FLEX_TOKEN"),
                 "query_id": os.getenv("IBKR1_TRADES_QUERY_ID"),
             },
+            "save_dir": save_reports_dir,
         }
 
     # JSON Source (for testing)

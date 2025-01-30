@@ -37,7 +37,7 @@ def create_sources() -> Dict[str, TradeSource]:
                 portfolio_query_id=config["portfolio"]["query_id"],
                 trades_token=config["trades"]["token"],
                 trades_query_id=config["trades"]["query_id"],
-                save_dir=config.get("save_dir", "data/flex_reports"),
+                save_dir=config.get("save_dir", None),
             )
         elif config["type"] == "json":
             logger.info(f"Creating JSON source {source_id}")
