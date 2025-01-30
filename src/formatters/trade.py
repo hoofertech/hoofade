@@ -14,16 +14,9 @@ class TradeFormatter:
 
     def _format_new_trade(self, trade: Trade) -> Message:
         symbol_text = self._format_instrument(trade.instrument)
-        action_emoji = "📈" if trade.side == "BUY" else "📉"
-
-        content = (
-            f"New Trade Alert 🚨\n"
-            f"{symbol_text}\n"
-            f"{action_emoji} {trade.side.capitalize()} "
-            f"{abs(trade.quantity)} "
-            f"{'contracts' if trade.instrument.type == InstrumentType.OPTION else 'shares'} "
-            f"@ ${trade.price}"
-        )
+        action = "Buy" if trade.side == "BUY" else "Sell"
+        
+        content = f"🚨 {action} {symbol_text}: {abs(trade.quantity)}@${trade.price}"
 
         return Message(
             content=content,
@@ -37,17 +30,15 @@ class TradeFormatter:
         pl_pct = ((exit_price / entry_price) - 1) * 100
         if trade.side == "SELL":
             pl_pct = -pl_pct
-
         hold_time = trade.timestamp - matching_trade.timestamp
         hold_time_str = self._format_hold_time(hold_time)
-        symbol_text = self._format_instrument(trade.instrument)
 
-        content = (
-            f"Position Closed 📊\n"
-            f"{symbol_text}\n"
-            f"P&L: {pl_pct:.2f}%\n"
-            f"Hold time: {hold_time_str}"
-        )
+        symbol_text = self._format_instrument(trade.instrument)
+        pl_sign = "+" if pl_pct > 0 else ""
+        
+        action = "Buy" if trade.side == "BUY" else "Sell"
+        
+        content = f"📊 {action} (closed: {hold_time_str}) {symbol_text}: {abs(trade.quantity)}@${trade.price} -> {pl_sign}{pl_pct:.2f}%"
 
         return Message(
             content=content,
@@ -66,13 +57,13 @@ class TradeFormatter:
         if not instrument.option_details:
             raise ValueError("Option details missing for option instrument")
 
-        expiry = instrument.option_details.expiry.strftime("%d %b %Y")
+        expiry = instrument.option_details.expiry.strftime("%d-%b-%Y")
         strike = instrument.option_details.strike
         option_type = (
             "C" if instrument.option_details.option_type == OptionType.CALL else "P"
         )
 
-        return f"${instrument.symbol} {expiry} ${strike}{option_type}"
+        return f"${instrument.symbol}/{expiry}@${strike}{option_type}"
 
     def _format_hold_time(self, delta) -> str:
         days = delta.days

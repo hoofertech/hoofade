@@ -25,7 +25,7 @@ async def test_end_to_end_flow(test_timestamp, mock_source, mock_sink):
     # Verify message content
     published_message = mock_sink.messages[0]
     assert "$AAPL" in published_message.content
-    assert "100 shares" in published_message.content
+    assert "100" in published_message.content
     assert "$150.25" in published_message.content
 
 
@@ -54,8 +54,8 @@ async def test_end_to_end_flow_with_matching_trade(
     # Verify message content
     published_message = mock_sink.messages[0]
     assert "$AAPL" in published_message.content
-    assert "P&L: -6.66%" in published_message.content
-    assert "Hold time: 2 hours 30 minutes" in published_message.content
+    assert "-6.66%" in published_message.content
+    assert "2 hours 30 minutes" in published_message.content
 
 
 @pytest.mark.asyncio
@@ -65,7 +65,7 @@ async def test_end_to_end_flow_with_option_trade(
     # Create an option trade
     option_trade = Trade(
         instrument=call_option_instrument,
-        quantity=Decimal("5"),
+        quantity=Decimal("666"),
         price=Decimal("3.50"),
         side="BUY",
         timestamp=test_timestamp,
@@ -93,7 +93,7 @@ async def test_end_to_end_flow_with_option_trade(
     # Verify message content
     published_message = mock_sink.messages[0]
     assert "$AAPL" in published_message.content
-    assert "15 Jun 2024" in published_message.content
+    assert "15-Jun-2024" in published_message.content
     assert "$150C" in published_message.content
-    assert "5 contracts" in published_message.content
+    assert "666" in published_message.content
     assert "$3.50" in published_message.content
