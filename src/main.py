@@ -1,5 +1,4 @@
 import asyncio
-from datetime import datetime, timezone, timedelta
 import logging
 from models.trade import Trade
 from models.db_trade import DBTrade
@@ -153,7 +152,9 @@ class TradePublisher:
 
     async def run(self):
         """Main loop to process trades periodically"""
-        json_only_sources = all(isinstance(src, JsonSource) for src in self.sources.values())
+        json_only_sources = all(
+            isinstance(src, JsonSource) for src in self.sources.values()
+        )
         while True:
             for source in self.sources.values():
                 try:
@@ -166,7 +167,7 @@ class TradePublisher:
 
                 finally:
                     await source.disconnect()
-            
+
             if json_only_sources:
                 break
             await asyncio.sleep(900)  # Sleep for 15 minutes

@@ -7,6 +7,7 @@ from models.position import Position
 from .base import TradeSource
 from .ibkr_parser import FlexReportParser
 from .ibkr_parser import ParsedExecution
+
 logger = logging.getLogger(__name__)
 
 

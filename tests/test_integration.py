@@ -1,4 +1,3 @@
-from datetime import timedelta
 from formatters.trade import TradeFormatter
 import pytest
 from models.trade import Trade

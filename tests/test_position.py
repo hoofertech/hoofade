@@ -7,7 +7,7 @@ from datetime import date
 
 @pytest.fixture
 def stock_position():
-    instrument = Instrument(symbol="AAPL", type=InstrumentType.STOCK)
+    instrument = Instrument(symbol="AAPL", type=InstrumentType.STOCK, currency="USD")
     return Position(
         instrument=instrument,
         quantity=Decimal("100"),
@@ -26,6 +26,7 @@ def long_call_position():
             expiry=date(2024, 12, 20),
             option_type=OptionType.CALL,
         ),
+        currency="USD",
     )
     return Position(
         instrument=instrument,
@@ -45,6 +46,7 @@ def short_put_position():
             expiry=date(2024, 12, 20),
             option_type=OptionType.PUT,
         ),
+        currency="USD",
     )
     return Position(
         instrument=instrument,
@@ -72,6 +74,7 @@ def test_invalid_option_position():
             instrument=Instrument(
                 symbol="AAPL",
                 type=InstrumentType.OPTION,  # Missing option_details
+                currency="USD",
             ),
             quantity=Decimal("1"),
             cost_basis=Decimal("1.00"),

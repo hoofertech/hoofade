@@ -74,7 +74,7 @@ class IBKRSource(TradeSource):
     def get_min_datetime_for_last_day(executions: List[ParsedExecution]) -> datetime:
         last_day_in_data = max(exec.timestamp for exec in executions)
         return last_day_in_data.replace(hour=0, minute=0, second=0, microsecond=0)
-    
+
     async def disconnect(self) -> None:
         # No cleanup needed for Flex API
         pass

@@ -26,15 +26,21 @@ class OptionDetails:
 class Instrument:
     symbol: str
     type: InstrumentType
+    currency: str
     option_details: Optional[OptionDetails] = None
 
     @classmethod
-    def stock(cls, symbol: str) -> "Instrument":
-        return cls(symbol=symbol, type=InstrumentType.STOCK)
+    def stock(cls, symbol: str, currency: str) -> "Instrument":
+        return cls(symbol=symbol, type=InstrumentType.STOCK, currency=currency)
 
     @classmethod
     def option(
-        cls, symbol: str, strike: Decimal, expiry: date | None, option_type: OptionType
+        cls,
+        symbol: str,
+        strike: Decimal,
+        expiry: date | None,
+        option_type: OptionType,
+        currency: str,
     ) -> "Instrument":
         if expiry is None:
             raise ValueError("Expiry is required for options")
@@ -46,4 +52,5 @@ class Instrument:
                 expiry=expiry,
                 option_type=option_type,
             ),
+            currency=currency,
         )

@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from typing import AsyncIterator
-from datetime import datetime
 from models.trade import Trade
 
 

@@ -35,7 +35,9 @@ class DBTrade(Base):
     def to_domain(self) -> Trade:
         # Change the comparison to use string representation for instrument type
         if str(self.instrument_type) == str(InstrumentType.STOCK):
-            instrument = Instrument.stock(symbol=cast(str, self.symbol))
+            instrument = Instrument.stock(
+                symbol=cast(str, self.symbol), currency=cast(str, self.currency)
+            )
         else:
             if not all(
                 x is not None
@@ -52,6 +54,7 @@ class DBTrade(Base):
                 strike=Decimal(str(self.strike)),
                 expiry=cast(date, self.expiry),
                 option_type=cast(OptionType, self.option_type),
+                currency=cast(str, self.currency),
             )
 
         return Trade(

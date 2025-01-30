@@ -13,7 +13,7 @@ def formatter():
 
 @pytest.fixture
 def stock_instrument():
-    return Instrument.stock(symbol="AAPL")
+    return Instrument.stock(symbol="AAPL", currency="USD")
 
 
 @pytest.fixture
@@ -23,6 +23,7 @@ def call_option_instrument():
         strike=Decimal("150"),
         expiry=date(2024, 6, 15),
         option_type=OptionType.CALL,
+        currency="USD",
     )
 
 
@@ -33,6 +34,7 @@ def put_option_instrument():
         strike=Decimal("140"),
         expiry=date(2024, 6, 15),
         option_type=OptionType.PUT,
+        currency="USD",
     )
 
 

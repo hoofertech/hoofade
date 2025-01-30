@@ -93,9 +93,13 @@ class FlexReportParser:
                     if data.get("expiry", "")
                     else None,
                     option_type=OptionType.CALL if put_call == "C" else OptionType.PUT,
+                    currency=str(data.get("currency", "USD")),
                 )
             else:
-                return Instrument.stock(symbol=str(data.get("symbol", "")))
+                return Instrument.stock(
+                    symbol=str(data.get("symbol", "")),
+                    currency=str(data.get("currency", "USD")),
+                )
         except Exception as e:
             logger.error(f"Error creating instrument: {e}")
             return None
