@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from decimal import Decimal
 from models.instrument import Instrument, InstrumentType
+from typing import Dict, Any
 
 
 @dataclass
@@ -22,30 +23,25 @@ class Position:
 
     @property
     def market_value(self) -> Decimal:
-        """Calculate total market value of the position"""
+        """Calculate current market value of position"""
         return self.quantity * self.market_price
 
     @property
-    def cost_value(self) -> Decimal:
-        """Calculate total cost value of the position"""
+    def cost_basis_value(self) -> Decimal:
+        """Calculate total cost basis of position"""
         return self.quantity * self.cost_basis
 
     @property
     def unrealized_pnl(self) -> Decimal:
-        """Calculate unrealized profit/loss"""
-        return self.market_value - self.cost_value
+        """Calculate unrealized P&L in absolute terms"""
+        return self.market_value - self.cost_basis_value
 
     @property
     def unrealized_pnl_percent(self) -> Decimal:
-        """Calculate unrealized profit/loss as a percentage"""
-        if self.cost_value == 0:
+        """Calculate unrealized P&L as a percentage"""
+        if self.cost_basis_value == 0:
             return Decimal("0")
-        return (self.unrealized_pnl / abs(self.cost_value)) * Decimal("100")
-
-    @property
-    def is_long(self) -> bool:
-        """Check if this is a long position"""
-        return self.quantity > 0
+        return (self.unrealized_pnl / abs(self.cost_basis_value)) * 100
 
     @property
     def is_short(self) -> bool:
@@ -57,15 +53,19 @@ class Position:
         """Get a human-readable description of the position"""
         if self.instrument.type == InstrumentType.STOCK:
             return f"{self.quantity:,.0f} {self.instrument.symbol}"
-        else:
-            opt = self.instrument.option_details
-            direction = "long" if self.is_long else "short"
-            return (
-                f"{abs(self.quantity):,.0f} {direction} {self.instrument.symbol} "
-                f"{opt.option_type.value} {opt.strike:,.2f} {opt.expiry:%Y-%m-%d}"
-            )
 
-    def to_dict(self) -> dict:
+        # Check if option_details exists before accessing its attributes
+        if self.instrument.option_details is None:
+            return f"{self.quantity:,.0f} {self.instrument.symbol} UNKNOWN OPTION"
+
+        opt = self.instrument.option_details
+        direction = "long" if not self.is_short else "short"
+        return (
+            f"{abs(self.quantity):,.0f} {direction} {self.instrument.symbol} "
+            f"{opt.option_type.value} {opt.strike:,.2f} {opt.expiry:%Y-%m-%d}"
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
         """Convert position to dictionary for serialization"""
         base_dict = {
             "symbol": self.instrument.symbol,
@@ -78,7 +78,11 @@ class Position:
             "unrealized_pnl_percent": str(self.unrealized_pnl_percent),
         }
 
-        if self.instrument.type == InstrumentType.OPTION:
+        # Only add option details if they exist
+        if (
+            self.instrument.type == InstrumentType.OPTION
+            and self.instrument.option_details is not None
+        ):
             opt = self.instrument.option_details
             base_dict.update(
                 {

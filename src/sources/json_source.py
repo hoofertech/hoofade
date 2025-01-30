@@ -1,14 +1,13 @@
 from datetime import datetime
 from typing import AsyncIterator, Dict, Any, List
-import json
 from pathlib import Path
 import logging
+from decimal import Decimal
 from models.trade import Trade
 from models.position import Position
-from models.instrument import Instrument, InstrumentType, OptionDetails, OptionType
-from decimal import Decimal
+from models.instrument import Instrument, OptionType
 from .base import TradeSource
-from datetime import timezone
+from .parser import FlexReportParser
 
 logger = logging.getLogger(__name__)
 
@@ -22,55 +21,39 @@ class JsonSource(TradeSource):
         super().__init__(source_id)
         self.data_dir = Path(data_dir)
         self.positions: List[Position] = []
+        self.parser = FlexReportParser()
 
-    def _load_latest_portfolio(self) -> Dict[str, Any]:
-        """Load the most recent portfolio file"""
-        portfolio_files = sorted(self.data_dir.glob("portfolio_*.json"))
-        if not portfolio_files:
-            return {}
-
-        latest_file = portfolio_files[-1]
-        with open(latest_file) as f:
-            return json.load(f)
-
-    def _parse_positions(self, data: Dict[str, Any]) -> List[Position]:
+    def _parse_positions(self, positions_data: List[Dict[str, Any]]) -> List[Position]:
         """Parse positions from portfolio data"""
         positions = []
-        for pos_data in data.get(
-            "OpenPosition", []
-        ):  # Changed from "Position" to "OpenPosition"
+        for pos_data in positions_data:
             try:
                 # Create instrument based on position data
-                if pos_data.get("putCall"):
+                put_call = str(pos_data.get("putCall", ""))
+                if put_call:
                     # Option position
-                    option_details = OptionDetails(
-                        strike=Decimal(str(pos_data["strike"])),
+                    instrument = Instrument.option(
+                        symbol=str(pos_data.get("underlyingSymbol", "")),
+                        strike=Decimal(str(pos_data.get("strike", "0"))),
                         expiry=datetime.strptime(
-                            pos_data["expiry"], "%Y%m%d"
-                        ).date(),  # Changed date format
+                            str(pos_data.get("expiry", "")), "%Y%m%d"
+                        ).date(),
                         option_type=OptionType.CALL
-                        if pos_data["putCall"] == "C"
+                        if put_call == "C"
                         else OptionType.PUT,
-                    )
-                    instrument = Instrument(
-                        symbol=pos_data[
-                            "underlyingSymbol"
-                        ],  # Use underlyingSymbol for options
-                        type=InstrumentType.OPTION,
-                        option_details=option_details,
                     )
                 else:
                     # Stock position
-                    instrument = Instrument(
-                        symbol=pos_data["symbol"], type=InstrumentType.STOCK
+                    instrument = Instrument.stock(
+                        symbol=str(pos_data.get("symbol", ""))
                     )
 
                 positions.append(
                     Position(
                         instrument=instrument,
-                        quantity=Decimal(str(pos_data["position"])),
-                        cost_basis=Decimal(str(pos_data["costBasisPrice"])),
-                        market_price=Decimal(str(pos_data["markPrice"])),
+                        quantity=Decimal(str(pos_data.get("position", "0"))),
+                        cost_basis=Decimal(str(pos_data.get("costBasisPrice", "0"))),
+                        market_price=Decimal(str(pos_data.get("markPrice", "0"))),
                     )
                 )
             except Exception as e:
@@ -87,12 +70,12 @@ class JsonSource(TradeSource):
                 return False
 
             # Load and parse positions
-            portfolio_data = self._load_latest_portfolio()
-            if not portfolio_data:
+            portfolio_data = self.parser.load_latest_portfolio(self.data_dir)
+            if portfolio_data is None:
                 logger.warning("No portfolio data found")
                 self.positions = []
             else:
-                self.positions = self._parse_positions(portfolio_data)
+                self.positions = self._parse_positions([portfolio_data])
                 logger.info(
                     f"Loaded {len(self.positions)} positions from {self.data_dir}"
                 )
@@ -102,67 +85,49 @@ class JsonSource(TradeSource):
             logger.error(f"Failed to connect to JSON source: {e}")
             return False
 
-    def _load_latest_trades(self) -> Dict[str, Any]:
-        """Load the most recent trades file"""
-        trade_files = sorted(self.data_dir.glob("trades_*.json"))
-        if not trade_files:
-            return {}
-
-        latest_file = trade_files[-1]
-        with open(latest_file) as f:
-            return json.load(f)
-
     async def get_recent_trades(self, since: datetime) -> AsyncIterator[Trade]:
-        data = self._load_latest_trades()
-        
-        for trade_data in data.get("TradeConfirm", []):
-            try:
-                # Parse datetime from IBKR format (YYYYMMDD;HHMMSS)
-                trade_time_str = trade_data["dateTime"]
-                if ";" in trade_time_str:
-                    # Handle IBKR Flex Query format: "20250129;112309"
-                    trade_time = datetime.strptime(
-                        trade_time_str.replace(";", " "), 
-                        "%Y%m%d %H%M%S"
-                    ).replace(tzinfo=timezone.utc)
-                else:
-                    # Handle other possible formats (like ISO format)
-                    trade_time = datetime.fromisoformat(trade_time_str)
-                    if trade_time.tzinfo is None:
-                        trade_time = trade_time.replace(tzinfo=timezone.utc)
-                
-                if trade_time >= since:
-                    if trade_data.get("putCall"):
-                        # Option trade
-                        option_details = OptionDetails(
-                            strike=Decimal(str(trade_data["strike"])),
-                            expiry=datetime.strptime(str(trade_data["expiry"]), "%Y%m%d").date(),
-                            option_type=OptionType.CALL if trade_data["putCall"] == "C" else OptionType.PUT
-                        )
-                        instrument = Instrument(
-                            symbol=trade_data["underlyingSymbol"],
-                            type=InstrumentType.OPTION,
-                            option_details=option_details
-                        )
-                    else:
-                        # Stock trade
-                        instrument = Instrument(
-                            symbol=trade_data["symbol"],
-                            type=InstrumentType.STOCK
-                        )
+        """Get trades since the specified timestamp"""
+        trade_data = self.parser.load_latest_trades(self.data_dir)
+        if trade_data is None:
+            return
 
-                    yield Trade(
-                        instrument=instrument,
-                        quantity=Decimal(str(abs(float(trade_data["quantity"])))),
-                        price=Decimal(str(trade_data["price"])),
-                        side="BUY" if trade_data["buySell"] == "BUY" else "SELL",
-                        timestamp=trade_time,
-                        source_id=self.source_id,
-                        trade_id=str(trade_data["tradeID"])
-                    )
-            except Exception as e:
-                logger.error(f"Error parsing trade: {e} for data: {trade_data}")
-                continue
+        try:
+            # Parse trade datetime
+            trade_time_str = str(trade_data.get("dateTime", ""))
+            trade_time = self.parser.parse_flex_datetime(trade_time_str)
+            if not trade_time or trade_time < since:
+                logger.info(f"No trades since {since}")
+                return
+
+            # Parse instrument
+            put_call = str(trade_data.get("putCall", ""))
+            if put_call:
+                # Option trade
+                instrument = Instrument.option(
+                    symbol=str(trade_data.get("underlyingSymbol", "")),
+                    strike=Decimal(str(trade_data.get("strike", "0"))),
+                    expiry=datetime.strptime(
+                        str(trade_data.get("expiry", "")), "%Y%m%d"
+                    ).date(),
+                    option_type=OptionType.CALL if put_call == "C" else OptionType.PUT,
+                )
+            else:
+                # Stock trade
+                instrument = Instrument.stock(symbol=str(trade_data.get("symbol", "")))
+
+            yield Trade(
+                instrument=instrument,
+                quantity=Decimal(str(abs(float(str(trade_data.get("quantity", "0")))))),
+                price=Decimal(str(trade_data.get("price", "0"))),
+                side="BUY" if str(trade_data.get("buySell", "")) == "BUY" else "SELL",
+                timestamp=trade_time,
+                source_id=self.source_id,
+                trade_id=str(trade_data.get("tradeID", "")),
+            )
+        except Exception as e:
+            logger.error(f"Error parsing trade: {e} for data: {trade_data}")
+            return
 
     async def disconnect(self) -> None:
+        """Clean up any connections"""
         self.positions = []

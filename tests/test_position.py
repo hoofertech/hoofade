@@ -99,6 +99,6 @@ def test_option_position_to_dict(long_call_position):
 
 def test_position_pnl_calculations(short_put_position):
     assert short_put_position.market_value == Decimal("-6.30")
-    assert short_put_position.cost_value == Decimal("-7.50")
+    assert short_put_position.cost_basis_value == Decimal("-7.50")
     assert short_put_position.unrealized_pnl == Decimal("1.20")
     assert short_put_position.unrealized_pnl_percent == Decimal("16.00")
