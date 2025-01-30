@@ -13,15 +13,15 @@ class TradeFormatter:
         return self._format_new_trade(trade)
 
     def _format_new_trade(self, trade: Trade) -> Message:
-        symbol_text = self._format_instrument(trade.instrument)
-        action = "Buy" if trade.side == "BUY" else "Sell"
         currency = trade.currency
+        currency_symbol = (
+            "$" if currency == "USD" else "€" if currency == "EUR" else "¥"
+        )
+        symbol_text = self._format_instrument(trade.instrument, currency_symbol)
+        action = "Buy" if trade.side == "BUY" else "Sell"
 
         content = (
             f"🚨 {action} {symbol_text}: {int(abs(trade.quantity))}@${trade.price}"
-        )
-        currency_symbol = (
-            "$" if currency == "USD" else "€" if currency == "EUR" else "¥"
         )
         content = f"🚨 {action} {symbol_text}: {int(abs(trade.quantity))}@{currency_symbol}{trade.price}"
 
@@ -40,15 +40,15 @@ class TradeFormatter:
         hold_time = trade.timestamp - matching_trade.timestamp
         hold_time_str = self._format_hold_time(hold_time)
 
-        symbol_text = self._format_instrument(trade.instrument)
-        pl_sign = "+" if pl_pct > 0 else ""
         currency = trade.currency
-
-        action = "Buy" if trade.side == "BUY" else "Sell"
-
         currency_symbol = (
             "$" if currency == "USD" else "€" if currency == "EUR" else "¥"
         )
+        symbol_text = self._format_instrument(trade.instrument, currency_symbol)
+        pl_sign = "+" if pl_pct > 0 else ""
+
+        action = "Buy" if trade.side == "BUY" else "Sell"
+
         content = f"📊 {action} (closed: {hold_time_str}) {symbol_text}: {int(abs(trade.quantity))}@{currency_symbol}{trade.price} -> {pl_sign}{pl_pct:.2f}%"
 
         return Message(
@@ -61,7 +61,7 @@ class TradeFormatter:
             },
         )
 
-    def _format_instrument(self, instrument: Instrument) -> str:
+    def _format_instrument(self, instrument: Instrument, currency_symbol: str) -> str:
         if instrument.type == InstrumentType.STOCK:
             return f"${instrument.symbol}"
 
@@ -74,7 +74,7 @@ class TradeFormatter:
             "C" if instrument.option_details.option_type == OptionType.CALL else "P"
         )
 
-        return f"${instrument.symbol}/{expiry}@${strike}{option_type}"
+        return f"${instrument.symbol}/{expiry}@{currency_symbol}{strike}{option_type}"
 
     def _format_hold_time(self, delta) -> str:
         days = delta.days

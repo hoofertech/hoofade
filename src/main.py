@@ -90,6 +90,7 @@ class TradePublisher:
             since = datetime.now(timezone.utc) - timedelta(hours=24)
 
             for source in self.sources.values():
+                logger.info(f"Processing trades from {source.source_id}")
                 async for trade in source.get_recent_trades(since):
                     logger.info(
                         f"Processing trade {trade.trade_id} from {source.source_id}"
