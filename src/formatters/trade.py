@@ -15,8 +15,10 @@ class TradeFormatter:
     def _format_new_trade(self, trade: Trade) -> Message:
         symbol_text = self._format_instrument(trade.instrument)
         action = "Buy" if trade.side == "BUY" else "Sell"
-        
-        content = f"🚨 {action} {symbol_text}: {abs(trade.quantity)}@${trade.price}"
+
+        content = (
+            f"🚨 {action} {symbol_text}: {int(abs(trade.quantity))}@${trade.price}"
+        )
 
         return Message(
             content=content,
@@ -35,10 +37,10 @@ class TradeFormatter:
 
         symbol_text = self._format_instrument(trade.instrument)
         pl_sign = "+" if pl_pct > 0 else ""
-        
+
         action = "Buy" if trade.side == "BUY" else "Sell"
-        
-        content = f"📊 {action} (closed: {hold_time_str}) {symbol_text}: {abs(trade.quantity)}@${trade.price} -> {pl_sign}{pl_pct:.2f}%"
+
+        content = f"📊 {action} (closed: {hold_time_str}) {symbol_text}: {int(abs(trade.quantity))}@${trade.price} -> {pl_sign}{pl_pct:.2f}%"
 
         return Message(
             content=content,

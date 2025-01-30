@@ -87,10 +87,13 @@ class TradePublisher:
 
     async def process_trades(self):
         try:
-            since = datetime.now(timezone.utc) - timedelta(hours=12)
+            since = datetime.now(timezone.utc) - timedelta(hours=24)
 
             for source in self.sources.values():
                 async for trade in source.get_recent_trades(since):
+                    logger.info(
+                        f"Processing trade {trade.trade_id} from {source.source_id}"
+                    )
                     await self.process_single_trade(trade)
 
             await self.db.commit()
@@ -158,12 +161,11 @@ class TradePublisher:
                         logger.error(f"Failed to connect to source {source.source_id}")
                         continue
 
+                    logger.info(f"Processing trades from source {source.source_id}")
                     await self.process_trades()
 
                 finally:
                     await source.disconnect()
-
-            exit(0)
             await asyncio.sleep(900)  # Sleep for 15 minutes
 
 
