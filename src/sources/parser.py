@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 import json
 import logging
 import pandas as pd
@@ -79,181 +79,123 @@ class FlexReportParser:
             return None
 
     @staticmethod
-    def parse_positions_from_df(df: pd.DataFrame | None) -> List[ParsedPosition]:
-        """Parse positions from a DataFrame"""
-        if df is None or len(df.index) == 0:
-            return []
-
-        positions = []
-        for _, row in df.iterrows():
-            try:
-                put_call = row.get("putCall", "")
-                if put_call:
-                    instrument = Instrument.option(
-                        symbol=str(row.get("underlyingSymbol", "")),
-                        strike=Decimal(str(row.get("strike", "0"))),
-                        expiry=datetime.strptime(str(row["expiry"]), "%Y%m%d").date()
-                        if row.get("expiry", "")
-                        else None,
-                        option_type=OptionType.CALL
-                        if put_call == "C"
-                        else OptionType.PUT,
-                    )
-                else:
-                    instrument = Instrument.stock(symbol=str(row.get("symbol", "")))
-
-                positions.append(
-                    ParsedPosition(
-                        instrument=instrument,
-                        quantity=Decimal(str(row.get("position", "0"))),
-                        cost_basis=Decimal(str(row.get("costBasisPrice", "0"))),
-                        market_price=Decimal(str(row.get("markPrice", "0"))),
-                    )
+    def _create_instrument(data: Dict[str, Any]) -> Optional[Instrument]:
+        """Create instrument from position or trade data"""
+        try:
+            put_call = data.get("putCall", "")
+            if put_call:
+                return Instrument.option(
+                    symbol=str(data.get("underlyingSymbol", "")),
+                    strike=Decimal(str(data.get("strike", "0"))),
+                    expiry=datetime.strptime(str(data["expiry"]), "%Y%m%d").date()
+                    if data.get("expiry", "")
+                    else None,
+                    option_type=OptionType.CALL if put_call == "C" else OptionType.PUT,
                 )
-            except Exception as e:
-                logger.error(f"Error parsing position: {e}")
-                continue
-
-        return positions
+            else:
+                return Instrument.stock(symbol=str(data.get("symbol", "")))
+        except Exception as e:
+            logger.error(f"Error creating instrument: {e}")
+            return None
 
     @staticmethod
-    def parse_positions_from_dict(
-        positions_data: List[Dict[str, Any]],
+    def _row_to_dict(row: Union[pd.Series, Dict[str, Any]]) -> Dict[str, Any]:
+        """Convert DataFrame row or dict to consistent format"""
+        if isinstance(row, pd.Series):
+            return row.to_dict()
+        return row
+
+    @staticmethod
+    def parse_positions(
+        data: Union[pd.DataFrame, List[Dict[str, Any]]] | None,
     ) -> List[ParsedPosition]:
-        """Parse positions from a list of dictionaries"""
-        positions = []
-        for pos_data in positions_data:
-            try:
-                put_call = pos_data.get("putCall", "")
-                if put_call:
-                    instrument = Instrument.option(
-                        symbol=str(pos_data.get("underlyingSymbol", "")),
-                        strike=Decimal(str(pos_data.get("strike", "0"))),
-                        expiry=datetime.strptime(
-                            str(pos_data["expiry"]), "%Y%m%d"
-                        ).date()
-                        if pos_data.get("expiry", "")
-                        else None,
-                        option_type=OptionType.CALL
-                        if put_call == "C"
-                        else OptionType.PUT,
-                    )
-                else:
-                    instrument = Instrument.stock(
-                        symbol=str(pos_data.get("symbol", ""))
-                    )
-
-                positions.append(
-                    ParsedPosition(
-                        instrument=instrument,
-                        quantity=Decimal(str(pos_data.get("position", "0"))),
-                        cost_basis=Decimal(str(pos_data.get("costBasisPrice", "0"))),
-                        market_price=Decimal(str(pos_data.get("markPrice", "0"))),
-                    )
-                )
-            except Exception as e:
-                logger.error(f"Error parsing position: {e}")
-                continue
-
-        return positions
-
-    @staticmethod
-    def parse_executions_from_df(df: pd.DataFrame | None) -> List[ParsedExecution]:
-        """Parse executions from a DataFrame"""
-        if df is None or len(df.index) == 0:
+        """Parse positions from DataFrame or list of dicts"""
+        if data is None:
             return []
 
-        executions = []
-        for _, row in df.iterrows():
+        if isinstance(data, pd.DataFrame):
+            if data.empty:
+                return []
+            data_list = data.to_dict("records")
+        else:
+            data_list = data
+
+        positions = []
+        for item in data_list:
             try:
-                trade_time = FlexReportParser.parse_flex_datetime(str(row["dateTime"]))
-                if not trade_time:
-                    logger.warning(f"Invalid datetime for trade: {row['tradeID']}")
+                item_dict = FlexReportParser._row_to_dict(item)
+                instrument = FlexReportParser._create_instrument(item_dict)
+                if not instrument:
                     continue
 
-                put_call = row.get("putCall", "")
-                if put_call:
-                    instrument = Instrument.option(
-                        symbol=str(row.get("underlyingSymbol", "")),
-                        strike=Decimal(str(row.get("strike", "0"))),
-                        expiry=datetime.strptime(str(row["expiry"]), "%Y%m%d").date()
-                        if row.get("expiry", "")
-                        else None,
-                        option_type=OptionType.CALL
-                        if put_call == "C"
-                        else OptionType.PUT,
-                    )
-                else:
-                    instrument = Instrument.stock(symbol=str(row.get("symbol", "")))
-
-                executions.append(
-                    ParsedExecution(
+                positions.append(
+                    ParsedPosition(
                         instrument=instrument,
-                        quantity=Decimal(str(abs(float(row["quantity"])))),
-                        price=Decimal(str(row["price"])),
-                        side="BUY" if float(row["quantity"]) > 0 else "SELL",
-                        timestamp=trade_time,
-                        exec_id=str(row["tradeID"]),
+                        quantity=Decimal(str(item_dict.get("position", "0"))),
+                        cost_basis=Decimal(str(item_dict.get("costBasisPrice", "0"))),
+                        market_price=Decimal(str(item_dict.get("markPrice", "0"))),
                     )
                 )
             except Exception as e:
-                logger.warning(
-                    f"Error processing trade from df {row.get('tradeID', 'unknown')}, row: {row}, error: {e}"
-                )
+                logger.error(f"Error parsing position: {e}")
                 continue
 
-        return executions
+        return positions
 
     @staticmethod
-    def parse_executions_from_dict(
-        trades_data: List[Dict[str, Any]],
+    def parse_executions(
+        data: Union[pd.DataFrame, List[Dict[str, Any]]] | None,
     ) -> List[ParsedExecution]:
-        """Parse executions from a list of dictionaries"""
+        """Parse executions from DataFrame or list of dicts"""
+        if data is None:
+            return []
+
+        if isinstance(data, pd.DataFrame):
+            if data.empty:
+                return []
+            data_list = data.to_dict("records")
+        else:
+            data_list = data
+
         executions = []
-        for trade_data in trades_data:
+        for item in data_list:
+            item_dict = None
             try:
+                item_dict = FlexReportParser._row_to_dict(item)
                 trade_time = FlexReportParser.parse_flex_datetime(
-                    str(trade_data["dateTime"])
+                    str(item_dict["dateTime"])
                 )
                 if not trade_time:
                     logger.warning(
-                        f"Invalid datetime for trade: {trade_data['tradeID']}"
+                        f"Invalid datetime for trade: {item_dict.get('tradeID', 'unknown')}"
                     )
                     continue
 
-                put_call = trade_data.get("putCall", "")
-                if put_call:
-                    instrument = Instrument.option(
-                        symbol=str(trade_data.get("underlyingSymbol", "")),
-                        strike=Decimal(str(trade_data.get("strike", "0"))),
-                        expiry=datetime.strptime(
-                            str(trade_data["expiry"]), "%Y%m%d"
-                        ).date()
-                        if trade_data.get("expiry", "")
-                        else None,
-                        option_type=OptionType.CALL
-                        if put_call == "C"
-                        else OptionType.PUT,
-                    )
-                else:
-                    instrument = Instrument.stock(
-                        symbol=str(trade_data.get("symbol", ""))
-                    )
+                instrument = FlexReportParser._create_instrument(item_dict)
+                if not instrument:
+                    continue
 
+                quantity = float(item_dict["quantity"])
                 executions.append(
                     ParsedExecution(
                         instrument=instrument,
-                        quantity=Decimal(str(abs(float(trade_data["quantity"])))),
-                        price=Decimal(str(trade_data["price"])),
-                        side="BUY" if float(trade_data["quantity"]) > 0 else "SELL",
+                        quantity=Decimal(str(abs(quantity))),
+                        price=Decimal(str(item_dict["price"])),
+                        side="BUY" if quantity > 0 else "SELL",
                         timestamp=trade_time,
-                        exec_id=str(trade_data["tradeID"]),
+                        exec_id=str(item_dict["tradeID"]),
                     )
                 )
             except Exception as e:
                 logger.warning(
-                    f"Error processing trade from dict {trade_data.get('tradeID', 'unknown')}: {e}"
+                    f"Error processing trade {item_dict.get('tradeID', 'unknown') if item_dict else 'unknown'}: {e}"
                 )
                 continue
 
         return executions
+
+    # Maintain backwards compatibility with existing method names
+    parse_positions_from_df = parse_positions
+    parse_positions_from_dict = parse_positions
+    parse_executions_from_df = parse_executions
+    parse_executions_from_dict = parse_executions
