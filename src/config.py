@@ -1,8 +1,11 @@
 import os
 from typing import Dict, Any
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 def get_source_configs() -> Dict[str, Dict[str, Any]]:
@@ -15,6 +18,7 @@ def get_source_configs() -> Dict[str, Dict[str, Any]]:
 
     # IBKR Account 1
     if os.getenv("IBKR1_ENABLED", "false").lower() == "true":
+        logger.info("IBKR1 source enabled")
         sources["ibkr1"] = {
             "type": "ibkr",
             "source_id": "ibkr-account1",
@@ -30,7 +34,8 @@ def get_source_configs() -> Dict[str, Dict[str, Any]]:
         }
 
     # JSON Source (for testing)
-    if os.getenv("IBKR0_JSON_SOURCE_ENABLED", "false").lower() == "true" or os.getenv("IBKR1_JSON_SOURCE_ENABLED", "false").lower() != "true":
+    if os.getenv("IBKR0_JSON_SOURCE_ENABLED", "false").lower() == "true" or os.getenv("IBKR1_ENABLED", "false").lower() != "true":
+        logger.info("JSON source enabled")
         sources["json"] = {
             "type": "json",
             "source_id": "json-source",
@@ -46,6 +51,7 @@ def get_sink_configs() -> Dict[str, Dict[str, Any]]:
 
     # Twitter
     if os.getenv("TWITTER_ENABLED", "false").lower() == "true":
+        logger.info("Twitter sink enabled")
         sinks["twitter"] = {
             "type": "twitter",
             "sink_id": "twitter-main",
@@ -58,6 +64,7 @@ def get_sink_configs() -> Dict[str, Dict[str, Any]]:
 
     # CLI
     if os.getenv("CLI_ENABLED", "false").lower() == "true" or os.getenv("TWITTER_ENABLED", "false").lower() != "true":
+        logger.info("CLI sink enabled")
         sinks["cli"] = {
             "type": "cli",
             "sink_id": "cli-output",
