@@ -20,7 +20,7 @@ from sources.ibkr_json_source import JsonSource
 from sinks.cli import CLISink
 from formatters.portfolio import PortfolioFormatter
 from datetime import datetime, timezone
-
+from models.message import Message
 logger = logging.getLogger(__name__)
 
 
@@ -117,46 +117,69 @@ class TradePublisher:
 
     async def process_trades(self):
         try:
+            new_trades = []
             for source in self.sources.values():
                 logger.debug(f"Processing trades from {source.source_id}")
                 async for trade in source.get_last_day_trades():
-                    logger.debug(
-                        f"Processing trade {trade.trade_id} from {source.source_id}"
+                    # Check if trade was already published
+                    query = select(DBTrade).where(
+                        DBTrade.trade_id == trade.trade_id,
+                        DBTrade.source_id == trade.source_id
                     )
-                    await self.process_single_trade(trade)
+                    result = await self.db.execute(query)
+                    if result.scalar_one_or_none():
+                        continue
+
+                    # Find matching trade
+                    matching_db_trade = await self.find_matching_trade(trade)
+                    
+                    # Save to database
+                    db_trade = DBTrade.from_domain(trade)
+                    self.db.add(db_trade)
+                    
+                    # Update matching trade if exists
+                    if matching_db_trade:
+                        setattr(matching_db_trade, "matched", True)
+                        self.db.add(matching_db_trade)
+                    
+                    # Add to new trades list with its matching trade
+                    new_trades.append((trade, matching_db_trade.to_domain() if matching_db_trade else None))
+
+            if new_trades:
+                # Get timestamp of last trade
+                last_trade_timestamp = max(trade.timestamp for trade, _ in new_trades)
+                date_str = last_trade_timestamp.strftime("%d %b %Y %H:%M").upper()
+                
+                # Format all trades into one message
+                content = []
+                # Add header
+                content.append(f"Trades on {date_str}")
+                content.append("")  # Empty line after header
+                
+                for trade, matching_trade in new_trades:
+                    message = self.formatter.format_trade(trade, matching_trade)
+                    content.append(message.content)
+
+                # Create combined message
+                combined_message = Message(
+                    content="\n".join(content),
+                    timestamp=datetime.now(timezone.utc),
+                    metadata={"type": "trade_batch"}
+                )
+
+                # Publish to all sinks
+                for sink in self.sinks.values():
+                    if sink.can_publish():
+                        if await sink.publish(combined_message):
+                            logger.debug(f"Published {len(new_trades)} trades to {sink.sink_id}")
+                        else:
+                            logger.warning(f"Failed to publish trades to {sink.sink_id}")
 
             await self.db.commit()
         except Exception as e:
             logger.error(f"Error processing trades: {str(e)}")
             await self.db.rollback()
             raise e
-
-    async def process_single_trade(self, trade):
-        # Save to database using the conversion method
-        db_trade = DBTrade.from_domain(trade)
-        self.db.add(db_trade)
-
-        # Find matching trade
-        matching_db_trade = await self.find_matching_trade(trade)
-
-        # Format message with domain model
-        matching_trade = matching_db_trade.to_domain() if matching_db_trade else None
-        message = self.formatter.format_trade(trade, matching_trade)
-
-        # Publish to all sinks
-        for sink in self.sinks.values():
-            if sink.can_publish():
-                if await sink.publish(message):
-                    logger.debug(f"Published trade {trade.trade_id} to {sink.sink_id}")
-                else:
-                    logger.warning(
-                        f"Failed to publish trade {trade.trade_id} to {sink.sink_id}"
-                    )
-
-        # Update matching trade if exists
-        if matching_db_trade:
-            setattr(matching_db_trade, "matched", True)
-            self.db.add(matching_db_trade)
 
     async def find_matching_trade(self, trade: Trade) -> Optional[DBTrade]:
         """Find a matching trade for the given trade"""

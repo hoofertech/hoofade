@@ -17,7 +17,7 @@ async def test_twitter_sink_publish_success(twitter_sink):
 
         assert await twitter_sink.publish(message)
         mock_client.create_tweet.assert_called_once_with(
-            text="Test message", in_reply_to_tweet_id=None
+            text="Test message\n\n🚀 Build yours: github.com/hoofertech/xtrades", in_reply_to_tweet_id=None
         )
 
 
@@ -53,7 +53,7 @@ async def test_twitter_sink_rate_limit(twitter_sink):
         assert not await twitter_sink.publish(message2)
 
         mock_client.create_tweet.assert_called_once_with(
-            text="Test message 1", in_reply_to_tweet_id=None
+            text="Test message 1\n\n🚀 Build yours: github.com/hoofertech/xtrades", in_reply_to_tweet_id=None
         )
 
 
