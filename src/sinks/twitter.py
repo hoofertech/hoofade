@@ -1,8 +1,10 @@
-import logging
-from datetime import datetime, timezone
 import tweepy
+import logging
+from typing import Optional
+from .base import MessageSink
 from models.message import Message
-from sinks.base import MessageSink
+from formatters.message_splitter import MessageSplitter
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +34,28 @@ class TwitterSink(MessageSink):
         return (now - self.last_publish).total_seconds() >= 1800  # 30 minutes
 
     async def publish(self, message: Message) -> bool:
-        if not self.can_publish():
-            return False
-
         try:
-            self.client.create_tweet(text=message.content)
+            if not self.can_publish():
+                return False
+
+            tweets = MessageSplitter.split_to_tweets(message)
+            previous_tweet_id: Optional[str] = None
+
+            for tweet in tweets:
+                logger.info(f"Publishing tweet: {tweet.content}")
+                try:
+                    response = self.client.create_tweet(
+                        text=tweet.content, in_reply_to_tweet_id=previous_tweet_id
+                    )
+                    logger.info(f"Response: {response}")
+                    previous_tweet_id = response.data.get("id", None)
+                    logger.debug(f"Published tweet: {tweet.content}")
+                except Exception as e:
+                    logger.error(f"Error publishing tweet: {str(e)}")
+                    return False
+
             self.last_publish = datetime.now(timezone.utc)
             return True
         except Exception as e:
-            logger.error(f"Failed to publish to Twitter: {str(e)}")
+            logger.error(f"Error in Twitter sink: {str(e)}")
             return False

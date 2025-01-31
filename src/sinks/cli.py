@@ -1,6 +1,7 @@
 import logging
+from .base import MessageSink
 from models.message import Message
-from sinks.base import MessageSink
+from formatters.message_splitter import MessageSplitter
 
 logger = logging.getLogger(__name__)
 
@@ -10,15 +11,20 @@ class CLISink(MessageSink):
         super().__init__(sink_id)
 
     def can_publish(self) -> bool:
-        # CLI sink can always publish
         return True
 
     async def publish(self, message: Message) -> bool:
         try:
-            print(
-                f"[{message.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] {message.content}"
-            )
+            tweets = MessageSplitter.split_to_tweets(message)
+
+            # Print a separator for thread clarity in CLI
+            print("\n" + "=" * 40 + "\n")
+
+            for tweet in tweets:
+                print(tweet.content)
+                print()  # Empty line between tweets
+
             return True
         except Exception as e:
-            logger.error(f"Failed to publish to CLI: {str(e)}")
+            logger.error(f"Error in CLI sink: {str(e)}")
             return False
