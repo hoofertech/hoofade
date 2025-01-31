@@ -37,7 +37,7 @@ async def json_source(test_data_dir):
 @pytest.mark.asyncio
 async def test_cli_sink_stock_trade(cli_sink, json_source, trade_formatter, capsys):
     # Get BABA position from source
-    positions = await json_source.get_positions()
+    positions = [pos async for pos in json_source.get_positions()]
     baba_position = next(p for p in positions if p.instrument.symbol == "BABA")
 
     # Create a trade
@@ -70,7 +70,7 @@ async def test_cli_sink_stock_trade(cli_sink, json_source, trade_formatter, caps
 @pytest.mark.asyncio
 async def test_cli_sink_option_trade(cli_sink, json_source, trade_formatter, capsys):
     # Get NVDA option position from source
-    positions = await json_source.get_positions()
+    positions = [pos async for pos in json_source.get_positions()]
     nvda_position = next(
         p
         for p in positions
@@ -109,7 +109,7 @@ async def test_cli_sink_option_trade(cli_sink, json_source, trade_formatter, cap
 @pytest.mark.asyncio
 async def test_cli_sink_closing_trade(cli_sink, json_source, trade_formatter, capsys):
     # Get PLTR short position from source
-    positions = await json_source.get_positions()
+    positions = [pos async for pos in json_source.get_positions()]
     pltr_position = next(p for p in positions if p.instrument.symbol == "PLTR")
 
     # Create opening trade
@@ -155,7 +155,7 @@ async def test_cli_sink_closing_trade(cli_sink, json_source, trade_formatter, ca
 async def test_cli_sink_real_trades(cli_sink, json_source, trade_formatter, capsys):
     """Test using actual trades from the JSON file"""
     # Get META trades from the test data
-    positions = await json_source.get_positions()
+    positions = [pos async for pos in json_source.get_positions()]
     meta_position = next(
         p
         for p in positions

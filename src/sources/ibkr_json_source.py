@@ -47,9 +47,10 @@ class JsonSource(TradeSource):
         """Clean up any connections"""
         self.positions = []
 
-    async def get_positions(self) -> List[Position]:
+    async def get_positions(self) -> AsyncIterator[Position]:
         """Get current positions"""
-        return self.positions
+        for pos in self.positions:
+            yield pos
 
     async def get_last_day_trades(self) -> AsyncIterator[Trade]:
         try:

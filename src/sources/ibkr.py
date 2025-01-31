@@ -6,6 +6,7 @@ from sources.base import TradeSource
 import asyncio
 from .ibkr_parser import ParsedExecution
 from typing import List
+from models.position import Position
 
 # Set up event loop
 try:
@@ -39,19 +40,29 @@ class IBKRSource(TradeSource):
                 save_dir=save_dir,
             )
         )
+        self.positions = []
 
     async def connect(self) -> bool:
         try:
             # Test connection by fetching positions
-            await self.flex_client.get_positions()
+            self.positions = [pos async for pos in self.flex_client.get_positions()]
+            logger.info(f"Connected to IBKR Flex: {len(self.positions)} positions")
             return True
         except Exception as e:
             logger.error(f"Failed to connect to IBKR Flex: {str(e)}")
             return False
 
+    async def get_positions(self) -> AsyncIterator[Position]:
+        try:
+            for pos in self.positions:
+                yield pos
+        except Exception as e:
+            logger.error(f"Failed to fetch positions: {str(e)}")
+            return
+
     async def get_last_day_trades(self) -> AsyncIterator[Trade]:
         try:
-            executions = await self.flex_client.get_executions()
+            executions = [exec async for exec in self.flex_client.get_executions()]
             if not executions:
                 return
             since = self.get_min_datetime_for_last_day(executions)

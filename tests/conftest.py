@@ -8,19 +8,25 @@ from sources.base import TradeSource
 from sinks.base import MessageSink
 from sinks.twitter import TwitterSink
 from typing import AsyncIterator
+from models.position import Position
 
 
 class MockTradeSource(TradeSource):
     def __init__(self, source_id: str, trades: list[Trade]):
         super().__init__(source_id)
         self.trades = trades
+        self.positions = []
 
-    async def connect(self) -> bool:
-        return True
+    async def get_positions(self) -> AsyncIterator[Position]:
+        for position in self.positions:
+            yield position
 
     async def get_last_day_trades(self) -> AsyncIterator[Trade]:
         for trade in self.trades:
             yield trade
+
+    async def connect(self) -> bool:
+        return True
 
     async def disconnect(self) -> None:
         pass

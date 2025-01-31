@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import AsyncIterator
 from models.trade import Trade
+from models.position import Position
 
 
 class TradeSource(ABC):
@@ -10,6 +11,11 @@ class TradeSource(ABC):
     @abstractmethod
     async def connect(self) -> bool:
         """Establish connection to the source"""
+        pass
+
+    @abstractmethod
+    def get_positions(self) -> AsyncIterator[Position]:
+        """Get positions from the source"""
         pass
 
     @abstractmethod

@@ -6,18 +6,11 @@ import pandas as pd
 from datetime import datetime
 from decimal import Decimal
 from models.instrument import Instrument, OptionType
+from models.position import Position
 from dataclasses import dataclass
 
+
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ParsedPosition:
-    instrument: Instrument
-    quantity: Decimal
-    cost_basis: Decimal
-    market_price: Decimal
-    currency: str
 
 
 @dataclass
@@ -114,7 +107,7 @@ class FlexReportParser:
     @staticmethod
     def parse_positions(
         data: Union[pd.DataFrame, List[Dict[str, Any]]] | None,
-    ) -> List[ParsedPosition]:
+    ) -> List[Position]:
         """Parse positions from DataFrame or list of dicts"""
         if data is None:
             return []
@@ -135,12 +128,11 @@ class FlexReportParser:
                     continue
 
                 positions.append(
-                    ParsedPosition(
+                    Position(
                         instrument=instrument,
                         quantity=Decimal(str(item_dict.get("position", "0"))),
                         cost_basis=Decimal(str(item_dict.get("costBasisPrice", "0"))),
                         market_price=Decimal(str(item_dict.get("markPrice", "0"))),
-                        currency=str(item_dict.get("currency", "USD")),
                     )
                 )
             except Exception as e:

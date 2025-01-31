@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List
 import logging
 from ib_insync import FlexReport
 from pathlib import Path
 import json
-from .ibkr_parser import FlexReportParser, ParsedPosition, ParsedExecution
+from .ibkr_parser import FlexReportParser, ParsedExecution
+from typing import AsyncIterator
+from models.position import Position
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ class FlexClient:
 
         logger.info(f"Saved {query_type} report to {xml_path} and {json_path}")
 
-    async def get_positions(self) -> List[ParsedPosition]:
+    async def get_positions(self) -> AsyncIterator[Position]:
         """Get current positions"""
         try:
             report = FlexReport(
@@ -76,15 +77,16 @@ class FlexClient:
 
             if not report.data:
                 logger.error("No data received from IBKR Flex API")
-                return []
+                return
 
             self._save_report(report, "portfolio")
-            return self.parser.parse_positions_from_df(report.df("Position"))
+            for pos in self.parser.parse_positions_from_df(report.df("Position")):
+                yield pos
         except Exception as e:
             logger.error(f"Error fetching positions: {str(e)}")
-            return []
+            return
 
-    async def get_executions(self) -> List[ParsedExecution]:
+    async def get_executions(self) -> AsyncIterator[ParsedExecution]:
         """Get trade executions"""
         try:
             report = FlexReport(
@@ -93,10 +95,11 @@ class FlexClient:
             report.download(self.config.trades.token, self.config.trades.query_id)
             if not report.data:
                 logger.error("No data received from IBKR Flex API")
-                return []
+                return
 
             self._save_report(report, "trades")
-            return self.parser.parse_executions_from_df(report.df("TradeConfirm"))
+            for exec in self.parser.parse_executions_from_df(report.df("TradeConfirm")):
+                yield exec
         except Exception as e:
             logger.error(f"Error fetching executions: {str(e)}")
-            return []
+            return

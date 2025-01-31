@@ -18,6 +18,8 @@ from typing import Optional
 from dotenv import load_dotenv
 from sources.ibkr_json_source import JsonSource
 from sinks.cli import CLISink
+from formatters.portfolio import PortfolioFormatter
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +85,36 @@ class TradePublisher:
         self.sinks = sinks
         self.db = db
         self.formatter = formatter
+        self.portfolio_formatter = PortfolioFormatter()
+        self.last_portfolio_post = None
+
+    async def publish_portfolio(self, source: TradeSource):
+        """Publish portfolio from a source"""
+        positions = []
+        async for position in source.get_positions():
+            positions.append(position)
+
+        timestamp = datetime.now(timezone.utc)
+        messages = self.portfolio_formatter.format_portfolio(positions, timestamp)
+
+        for message in messages:
+            for sink in self.sinks.values():
+                if sink.can_publish():
+                    await sink.publish(message)
+
+        self.last_portfolio_post = timestamp
+
+    def should_post_portfolio(self) -> bool:
+        now = datetime.now(timezone.utc)
+
+        # Post if we've never posted before
+        if self.last_portfolio_post is None:
+            return True
+
+        # Post if it's a new UTC day
+        last_post_day = self.last_portfolio_post.date()
+        current_day = now.date()
+        return current_day > last_post_day
 
     async def process_trades(self):
         try:
@@ -155,12 +187,20 @@ class TradePublisher:
         json_only_sources = all(
             isinstance(src, JsonSource) for src in self.sources.values()
         )
+
         while True:
             for source in self.sources.values():
                 try:
                     if not await source.connect():
                         logger.error(f"Failed to connect to source {source.source_id}")
                         continue
+
+                    # Check if we should post portfolio
+                    if self.should_post_portfolio():
+                        logger.info(
+                            f"Publishing portfolio from source {source.source_id}"
+                        )
+                        await self.publish_portfolio(source)
 
                     logger.info(f"Processing trades from source {source.source_id}")
                     await self.process_trades()
