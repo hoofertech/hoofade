@@ -65,13 +65,16 @@ def test_format_portfolio(portfolio_formatter, sample_positions):
 
     # Check content structure
     lines = message.content.split("\n")
-    assert lines[0] == "📊 Stocks:"
-    assert "$BABA +600@$96.03" in lines[1]
-    assert "$UBI  -900@€11.71" in lines[2]
-    assert lines[3] == ""  # Blank line between sections
-    assert lines[4] == "🎯 Options:"
-    assert "$NVDA 18JUL25 $100   P +1@$4.37" in lines[5]
-    assert "$TWLO 31JAN25 $150   C -1@$1.78" in lines[6]
+    expected_date = timestamp.strftime("%d %b %Y").upper()
+    assert lines[0] == f"Portfolio on {expected_date}"
+    assert lines[1] == ""  # Empty line after title
+    assert lines[2] == "📊 Stocks:"
+    assert "$BABA +600@$96.03" in lines[3]
+    assert "$UBI  -900@€11.71" in lines[4]
+    assert lines[5] == ""  # Blank line between sections
+    assert lines[6] == "🎯 Options:"
+    assert "$NVDA 18JUL25 $100   P +1@$4.37" in lines[7]
+    assert "$TWLO 31JAN25 $150   C -1@$1.78" in lines[8]
 
     # Check metadata
     assert message.metadata["type"] == "portfolio"
