@@ -4,9 +4,10 @@ import logging
 from ib_insync import FlexReport
 from pathlib import Path
 import json
-from .ibkr_parser import FlexReportParser, ParsedExecution
+from .ibkr_parser import FlexReportParser
 from typing import AsyncIterator
 from models.position import Position
+from models.trade import Trade
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ class FlexClient:
             logger.error(f"Error fetching positions: {str(e)}")
             return
 
-    async def get_executions(self) -> AsyncIterator[ParsedExecution]:
+    async def get_trades(self, source_id: str) -> AsyncIterator[Trade]:
         """Get trade executions"""
         try:
             report = FlexReport(
@@ -98,7 +99,9 @@ class FlexClient:
                 return
 
             self._save_report(report, "trades")
-            for exec in self.parser.parse_executions_from_df(report.df("TradeConfirm")):
+            for exec in self.parser.parse_executions_from_df(
+                report.df("TradeConfirm"), source_id
+            ):
                 yield exec
         except Exception as e:
             logger.error(f"Error fetching executions: {str(e)}")

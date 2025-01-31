@@ -12,5 +12,5 @@ class Trade:
     currency: str
     side: str
     timestamp: datetime
-    source_id: str
     trade_id: str
+    source_id: str | None = None

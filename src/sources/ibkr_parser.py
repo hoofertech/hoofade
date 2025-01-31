@@ -7,21 +7,10 @@ from datetime import datetime
 from decimal import Decimal
 from models.instrument import Instrument, OptionType
 from models.position import Position
-from dataclasses import dataclass
+from models.trade import Trade
 
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ParsedExecution:
-    instrument: Instrument
-    quantity: Decimal
-    price: Decimal
-    side: str
-    timestamp: datetime
-    exec_id: str
-    currency: str
 
 
 class FlexReportParser:
@@ -144,7 +133,8 @@ class FlexReportParser:
     @staticmethod
     def parse_executions(
         data: Union[pd.DataFrame, List[Dict[str, Any]]] | None,
-    ) -> List[ParsedExecution]:
+        source_id: str,
+    ) -> List[Trade]:
         """Parse executions from DataFrame or list of dicts"""
         if data is None:
             return []
@@ -176,14 +166,15 @@ class FlexReportParser:
 
                 quantity = float(item_dict["quantity"])
                 executions.append(
-                    ParsedExecution(
+                    Trade(
                         instrument=instrument,
                         quantity=Decimal(str(abs(quantity))),
                         price=Decimal(str(item_dict["price"])),
                         side="BUY" if quantity > 0 else "SELL",
                         timestamp=trade_time,
-                        exec_id=str(item_dict["tradeID"]),
                         currency=str(item_dict["currency"]),
+                        trade_id=str(item_dict["tradeID"]),
+                        source_id=source_id,
                     )
                 )
             except Exception as e:

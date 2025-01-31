@@ -6,7 +6,6 @@ from models.trade import Trade
 from models.position import Position
 from .base import TradeSource
 from .ibkr_parser import FlexReportParser
-from .ibkr_parser import ParsedExecution
 
 logger = logging.getLogger(__name__)
 
@@ -58,26 +57,19 @@ class JsonSource(TradeSource):
             if trades_data is None:
                 return
 
-            parsed_executions = self.parser.parse_executions_from_dict(trades_data)
-            if not parsed_executions:
+            parsed_trades = self.parser.parse_executions_from_dict(
+                trades_data, self.source_id
+            )
+            if not parsed_trades:
                 return
-            since = self.get_min_datetime_for_last_day(parsed_executions)
-            for exec in parsed_executions:
-                if exec.timestamp >= since:
-                    yield Trade(
-                        instrument=exec.instrument,
-                        quantity=exec.quantity,
-                        price=exec.price,
-                        currency=exec.currency,
-                        side=exec.side,
-                        timestamp=exec.timestamp,
-                        source_id=self.source_id,
-                        trade_id=exec.exec_id,
-                    )
+            since = self.get_min_datetime_for_last_day(parsed_trades)
+            for trade in parsed_trades:
+                if trade.timestamp >= since:
+                    yield trade
         except Exception as e:
             logger.error(f"Error fetching trades: {e}")
 
     @staticmethod
-    def get_min_datetime_for_last_day(executions: List[ParsedExecution]) -> datetime:
-        last_day_in_data = max(exec.timestamp for exec in executions)
+    def get_min_datetime_for_last_day(trades: List[Trade]) -> datetime:
+        last_day_in_data = max(trade.timestamp for trade in trades)
         return last_day_in_data.replace(hour=0, minute=0, second=0, microsecond=0)
