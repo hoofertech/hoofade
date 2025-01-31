@@ -59,28 +59,26 @@ def sample_positions():
 
 def test_format_portfolio(portfolio_formatter, sample_positions):
     timestamp = datetime.now(timezone.utc)
-    messages = portfolio_formatter.format_portfolio(sample_positions, timestamp)
+    message = portfolio_formatter.format_portfolio(sample_positions, timestamp)
 
-    for m in messages:
-        logger.info(f"message: {m.content}")
-    assert len(messages) == 2
+    logger.info(f"message: {message.content}")
 
-    # Check stock message
-    stock_message = messages[0]
-    assert stock_message.content.startswith("📊 Stocks:")
-    assert "$BABA +600@$96.03" in stock_message.content
-    assert "$UBI  -900@€11.71" in stock_message.content
-    assert stock_message.metadata["type"] == "stock_portfolio"
+    # Check content structure
+    lines = message.content.split("\n")
+    assert lines[0] == "📊 Stocks:"
+    assert "$BABA +600@$96.03" in lines[1]
+    assert "$UBI  -900@€11.71" in lines[2]
+    assert lines[3] == ""  # Blank line between sections
+    assert lines[4] == "🎯 Options:"
+    assert "$NVDA 18JUL25 $100   P +1@$4.37" in lines[5]
+    assert "$TWLO 31JAN25 $150   C -1@$1.78" in lines[6]
 
-    # Check option message
-    option_message = messages[1]
-    assert option_message.content.startswith("🎯 Options:")
-    assert "$NVDA 18JUL25 $100P +1@$4.37" in option_message.content
-    assert "$TWLO 31JAN25 $150C -1@$1.78" in option_message.content
-    assert option_message.metadata["type"] == "option_portfolio"
+    # Check metadata
+    assert message.metadata["type"] == "portfolio"
 
 
 def test_empty_portfolio(portfolio_formatter):
     timestamp = datetime.now(timezone.utc)
-    messages = portfolio_formatter.format_portfolio([], timestamp)
-    assert len(messages) == 0
+    message = portfolio_formatter.format_portfolio([], timestamp)
+    assert message.content == "No positions"
+    assert message.metadata["type"] == "portfolio"

@@ -95,12 +95,11 @@ class TradePublisher:
             positions.append(position)
 
         timestamp = datetime.now(timezone.utc)
-        messages = self.portfolio_formatter.format_portfolio(positions, timestamp)
+        message = self.portfolio_formatter.format_portfolio(positions, timestamp)
 
-        for message in messages:
-            for sink in self.sinks.values():
-                if sink.can_publish():
-                    await sink.publish(message)
+        for sink in self.sinks.values():
+            if sink.can_publish():
+                await sink.publish(message)
 
         self.last_portfolio_post = timestamp
 

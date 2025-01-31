@@ -8,10 +8,8 @@ from datetime import datetime
 class PortfolioFormatter:
     def format_portfolio(
         self, positions: List[Position], timestamp: datetime
-    ) -> List[Message]:
-        messages = []
-
-        # Separate positions by type
+    ) -> Message:
+        # Separate and sort positions
         stock_positions = [
             p for p in positions if p.instrument.type == InstrumentType.STOCK
         ]
@@ -19,14 +17,13 @@ class PortfolioFormatter:
             p for p in positions if p.instrument.type == InstrumentType.OPTION
         ]
 
-        # Sort stock positions by absolute value (quantity * price)
-        stock_positions.sort(
-            key=lambda p: abs(float(p.quantity) * float(p.market_price)), reverse=True
-        )
+        # Sort stock positions by symbol
+        stock_positions.sort(key=lambda p: p.instrument.symbol)
 
-        # Sort option positions by expiry date, then strike
+        # Sort option positions by symbol, then expiry
         option_positions.sort(
             key=lambda p: (
+                p.instrument.symbol,
                 p.instrument.option_details.expiry
                 if p.instrument.option_details
                 else datetime.max.date(),
@@ -36,6 +33,8 @@ class PortfolioFormatter:
             )
         )
 
+        content = []
+
         # Format stock positions with alignment
         if stock_positions:
             # Calculate max widths for each column
@@ -43,7 +42,7 @@ class PortfolioFormatter:
             max_quantity = max(len(str(abs(int(p.quantity)))) for p in stock_positions)
             max_price = max(len(f"{p.market_price:.2f}") for p in stock_positions)
 
-            stock_content = "📊 Stocks:"
+            content.append("📊 Stocks:")
             for pos in stock_positions:
                 currency = pos.instrument.currency
                 currency_symbol = (
@@ -51,33 +50,27 @@ class PortfolioFormatter:
                 )
                 sign = "-" if pos.quantity < 0 else "+"
 
-                stock_content += (
-                    f"\n${pos.instrument.symbol:<{max_symbol}} "
+                content.append(
+                    f"${pos.instrument.symbol:<{max_symbol}} "
                     f"{sign}{int(abs(pos.quantity)):>{max_quantity}}"
                     f"@{currency_symbol}{pos.market_price:<{max_price}.2f}"
                 )
-
-            messages.append(
-                Message(
-                    content=stock_content,
-                    timestamp=timestamp,
-                    metadata={"type": "stock_portfolio"},
-                )
-            )
 
         # Format option positions with alignment
         if option_positions:
             # Calculate max widths for each column
             max_symbol = max(len(p.instrument.symbol) for p in option_positions)
             max_strike = max(
-                len(f"{p.instrument.option_details.strike}")
+                len(f"{p.instrument.option_details.strike:.2f}")
                 for p in option_positions
                 if p.instrument.option_details
             )
             max_quantity = max(len(str(abs(int(p.quantity)))) for p in option_positions)
             max_price = max(len(f"{p.market_price:.2f}") for p in option_positions)
 
-            option_content = "🎯 Options:"
+            if content:  # Add a blank line if we had stocks
+                content.append("")
+            content.append("🎯 Options:")
             for pos in option_positions:
                 if not pos.instrument.option_details:
                     continue
@@ -95,20 +88,16 @@ class PortfolioFormatter:
                 )
                 sign = "-" if pos.quantity < 0 else "+"
 
-                option_content += (
-                    f"\n${pos.instrument.symbol:<{max_symbol}} "
+                content.append(
+                    f"${pos.instrument.symbol:<{max_symbol}} "
                     f"{expiry} "
                     f"{currency_symbol}{strike:<{max_strike}}{option_type} "
                     f"{sign}{int(abs(pos.quantity)):>{max_quantity}}"
                     f"@{currency_symbol}{pos.market_price:<{max_price}.2f}"
                 )
 
-            messages.append(
-                Message(
-                    content=option_content,
-                    timestamp=timestamp,
-                    metadata={"type": "option_portfolio"},
-                )
-            )
-
-        return messages
+        return Message(
+            content="\n".join(content) if content else "No positions",
+            timestamp=timestamp,
+            metadata={"type": "portfolio"},
+        )
