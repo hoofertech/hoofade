@@ -6,6 +6,11 @@ class MessageSplitter:
     MAX_TWEET_LENGTH = 280
     THREAD_MARKER = " 🧵"
     CONTINUATION_MARKER = "..."
+    REPO_LINK = "\n\n🚀 Build yours: github.com/hoofertech/xtrades"
+    # Alternative options:
+    # REPO_LINK = "\n\n🤖 Get your own bot: github.com/hoofertech/xtrades"
+    # REPO_LINK = "\n\n⚡️ Clone me: github.com/hoofertech/xtrades"
+    # REPO_LINK = "\n\n🔧 DIY: github.com/hoofertech/xtrades"
 
     @staticmethod
     def split_to_tweets(message: Message) -> List[Message]:
@@ -40,14 +45,28 @@ class MessageSplitter:
         if current_tweet:
             tweets.append("\n".join(current_tweet))
 
-        # Second pass: add thread markers
+        # Second pass: add thread markers and possibly repo link
         total_tweets = len(tweets)
         final_tweets = []
 
         for i, tweet_content in enumerate(tweets):
             position = i + 1
+            is_last_tweet = position == total_tweets
 
-            # Add appropriate markers based on position
+            # Calculate remaining space in last tweet
+            if is_last_tweet:
+                position_marker = f" ({position}/{total_tweets})"
+                remaining_space = (
+                    MessageSplitter.MAX_TWEET_LENGTH
+                    - len(tweet_content)
+                    - len(position_marker)
+                )
+
+                # Add repo link if there's space
+                if remaining_space >= len(MessageSplitter.REPO_LINK):
+                    tweet_content += MessageSplitter.REPO_LINK
+
+            # Add thread markers
             if total_tweets > 1:
                 if position == 1:
                     tweet_content += (
