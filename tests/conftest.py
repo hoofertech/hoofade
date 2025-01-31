@@ -9,6 +9,8 @@ from sinks.base import MessageSink
 from sinks.twitter import TwitterSink
 from typing import AsyncIterator
 from models.position import Position
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from models.db_trade import Base
 
 
 class MockTradeSource(TradeSource):
@@ -43,6 +45,25 @@ class MockMessageSink(MessageSink):
 
     def can_publish(self) -> bool:
         return True
+
+
+@pytest.fixture
+async def db_session():
+    """Create in-memory SQLite database for testing."""
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        echo=False,
+    )
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    async_session = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with async_session() as session:
+        yield session
+        await session.rollback()
+        await session.close()
 
 
 @pytest.fixture
@@ -166,3 +187,22 @@ def twitter_sink():
         access_token="test-access-token",
         access_token_secret="test-access-token-secret",
     )
+
+
+@pytest.fixture
+def sample_positions(stock_instrument, call_option_instrument):
+    """Sample positions for testing"""
+    return [
+        Position(
+            instrument=stock_instrument,
+            quantity=Decimal("100"),
+            market_price=Decimal("150.25"),
+            cost_basis=Decimal("145.50"),
+        ),
+        Position(
+            instrument=call_option_instrument,
+            quantity=Decimal("5"),
+            market_price=Decimal("3.50"),
+            cost_basis=Decimal("2.75"),
+        ),
+    ]

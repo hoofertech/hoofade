@@ -1,26 +1,20 @@
 import asyncio
 import logging
-from models.trade import Trade
-from models.db_trade import DBTrade
 from formatters.trade import TradeFormatter
 from typing import Dict
 from models.db_trade import Base
 from sources.ibkr import IBKRSource
 from sinks.twitter import TwitterSink
-from models.instrument import InstrumentType
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from config import get_source_configs, get_sink_configs, get_db_url
 from sources.base import TradeSource
 from sinks.base import MessageSink
-from sqlalchemy import select
-from typing import Optional
 from dotenv import load_dotenv
 from sources.ibkr_json_source import JsonSource
 from sinks.cli import CLISink
-from formatters.portfolio import PortfolioFormatter
-from datetime import datetime, timezone
-from models.message import Message
+from services.position_service import PositionService
+from services.trade_service import TradeService
 
 logger = logging.getLogger(__name__)
 
@@ -82,139 +76,9 @@ class TradePublisher:
         db: AsyncSession,
         formatter: TradeFormatter,
     ):
+        self.position_service = PositionService(sources, sinks)
+        self.trade_service = TradeService(sources, sinks, db, formatter)
         self.sources = sources
-        self.sinks = sinks
-        self.db = db
-        self.formatter = formatter
-        self.portfolio_formatter = PortfolioFormatter()
-        self.last_portfolio_post = None
-
-    async def publish_portfolio(self, source: TradeSource):
-        """Publish portfolio from a source"""
-        positions = []
-        async for position in source.get_positions():
-            positions.append(position)
-
-        timestamp = datetime.now(timezone.utc)
-        message = self.portfolio_formatter.format_portfolio(positions, timestamp)
-
-        for sink in self.sinks.values():
-            if sink.can_publish():
-                await sink.publish(message)
-
-        self.last_portfolio_post = timestamp
-
-    def should_post_portfolio(self) -> bool:
-        now = datetime.now(timezone.utc)
-
-        # Post if we've never posted before
-        if self.last_portfolio_post is None:
-            return True
-
-        # Post if it's a new UTC day
-        last_post_day = self.last_portfolio_post.date()
-        current_day = now.date()
-        return current_day > last_post_day
-
-    async def process_trades(self):
-        try:
-            new_trades = []
-            for source in self.sources.values():
-                logger.debug(f"Processing trades from {source.source_id}")
-                async for trade in source.get_last_day_trades():
-                    # Check if trade was already published
-                    query = select(DBTrade).where(
-                        DBTrade.trade_id == trade.trade_id,
-                        DBTrade.source_id == trade.source_id,
-                    )
-                    result = await self.db.execute(query)
-                    if result.scalar_one_or_none():
-                        continue
-
-                    # Find matching trade
-                    matching_db_trade = await self.find_matching_trade(trade)
-
-                    # Save to database
-                    db_trade = DBTrade.from_domain(trade)
-                    self.db.add(db_trade)
-
-                    # Update matching trade if exists
-                    if matching_db_trade:
-                        setattr(matching_db_trade, "matched", True)
-                        self.db.add(matching_db_trade)
-
-                    # Add to new trades list with its matching trade
-                    new_trades.append(
-                        (
-                            trade,
-                            matching_db_trade.to_domain()
-                            if matching_db_trade
-                            else None,
-                        )
-                    )
-
-            if new_trades:
-                # Get timestamp of last trade
-                last_trade_timestamp = max(trade.timestamp for trade, _ in new_trades)
-                date_str = last_trade_timestamp.strftime("%d %b %Y %H:%M").upper()
-
-                # Format all trades into one message
-                content = []
-                # Add header
-                content.append(f"Trades on {date_str}")
-                content.append("")  # Empty line after header
-
-                for trade, matching_trade in new_trades:
-                    message = self.formatter.format_trade(trade, matching_trade)
-                    content.append(message.content)
-
-                # Create combined message
-                combined_message = Message(
-                    content="\n".join(content),
-                    timestamp=datetime.now(timezone.utc),
-                    metadata={"type": "trade_batch"},
-                )
-
-                # Publish to all sinks
-                for sink in self.sinks.values():
-                    if sink.can_publish():
-                        if await sink.publish(combined_message):
-                            logger.debug(
-                                f"Published {len(new_trades)} trades to {sink.sink_id}"
-                            )
-                        else:
-                            logger.warning(
-                                f"Failed to publish trades to {sink.sink_id}"
-                            )
-
-            await self.db.commit()
-        except Exception as e:
-            logger.error(f"Error processing trades: {str(e)}")
-            await self.db.rollback()
-            raise e
-
-    async def find_matching_trade(self, trade: Trade) -> Optional[DBTrade]:
-        """Find a matching trade for the given trade"""
-        query = select(DBTrade).where(
-            DBTrade.symbol == trade.instrument.symbol,
-            DBTrade.instrument_type == trade.instrument.type,
-            DBTrade.quantity == -trade.quantity,  # Opposite quantity
-            DBTrade.matched == False,  # Not already matched # noqa: E712
-            DBTrade.source_id == trade.source_id,  # Same source
-        )
-
-        if trade.instrument.type == InstrumentType.OPTION:
-            if not trade.instrument.option_details:
-                raise ValueError("Missing option details for option trade")
-
-            query = query.where(
-                DBTrade.option_type == trade.instrument.option_details.option_type,
-                DBTrade.strike == trade.instrument.option_details.strike,
-                DBTrade.expiry == trade.instrument.option_details.expiry,
-            )
-
-        result = await self.db.execute(query)
-        return result.scalar_one_or_none()
 
     async def run(self):
         """Main loop to process trades periodically"""
@@ -229,15 +93,11 @@ class TradePublisher:
                         logger.error(f"Failed to connect to source {source.source_id}")
                         continue
 
-                    # Check if we should post portfolio
-                    if self.should_post_portfolio():
-                        logger.info(
-                            f"Publishing portfolio from source {source.source_id}"
-                        )
-                        await self.publish_portfolio(source)
+                    if self.position_service.should_post_portfolio():
+                        await self.position_service.publish_portfolio(source)
 
-                    logger.info(f"Processing trades from source {source.source_id}")
-                    await self.process_trades()
+                    new_trades = await self.trade_service.get_new_trades()
+                    await self.trade_service.publish_trades(new_trades)
 
                 finally:
                     await source.disconnect()

@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Numeric, DateTime, Boolean, Date, Enum
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from models.trade import Trade
 from models.instrument import Instrument, InstrumentType, OptionType
 from decimal import Decimal
