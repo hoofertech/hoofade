@@ -30,7 +30,7 @@ def get_source_configs() -> Dict[str, Dict[str, Any]]:
         }
 
     # JSON Source (for testing)
-    if os.getenv("IBKR0_JSON_SOURCE_ENABLED", "false").lower() == "true":
+    if os.getenv("IBKR0_JSON_SOURCE_ENABLED", "false").lower() == "true" or os.getenv("IBKR1_JSON_SOURCE_ENABLED", "false").lower() != "true":
         sources["json"] = {
             "type": "json",
             "source_id": "json-source",
@@ -57,7 +57,7 @@ def get_sink_configs() -> Dict[str, Dict[str, Any]]:
         }
 
     # CLI
-    if os.getenv("CLI_ENABLED", "false").lower() == "true":
+    if os.getenv("CLI_ENABLED", "false").lower() == "true" or os.getenv("TWITTER_ENABLED", "false").lower() != "true":
         sinks["cli"] = {
             "type": "cli",
             "sink_id": "cli-output",
