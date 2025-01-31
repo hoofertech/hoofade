@@ -68,15 +68,15 @@ def test_format_portfolio(portfolio_formatter, sample_positions):
     # Check stock message
     stock_message = messages[0]
     assert stock_message.content.startswith("📊 Stocks:")
-    assert "$BABA: +600@$96.03" in stock_message.content
-    assert "$UBI: -900@€11.71" in stock_message.content
+    assert "$BABA +600@$96.03" in stock_message.content
+    assert "$UBI  -900@€11.71" in stock_message.content
     assert stock_message.metadata["type"] == "stock_portfolio"
 
     # Check option message
     option_message = messages[1]
     assert option_message.content.startswith("🎯 Options:")
-    assert "$NVDA 18JUL25 $100P: +1@$4.37" in option_message.content
-    assert "$TWLO 31JAN25 $150C: -1@$1.78" in option_message.content
+    assert "$NVDA 18JUL25 $100P +1@$4.37" in option_message.content
+    assert "$TWLO 31JAN25 $150C -1@$1.78" in option_message.content
     assert option_message.metadata["type"] == "option_portfolio"
 
 

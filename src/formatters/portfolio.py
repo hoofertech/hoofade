@@ -36,8 +36,13 @@ class PortfolioFormatter:
             )
         )
 
-        # Format stock positions
+        # Format stock positions with alignment
         if stock_positions:
+            # Calculate max widths for each column
+            max_symbol = max(len(p.instrument.symbol) for p in stock_positions)
+            max_quantity = max(len(str(abs(int(p.quantity)))) for p in stock_positions)
+            max_price = max(len(f"{p.market_price:.2f}") for p in stock_positions)
+
             stock_content = "📊 Stocks:"
             for pos in stock_positions:
                 currency = pos.instrument.currency
@@ -45,7 +50,12 @@ class PortfolioFormatter:
                     "$" if currency == "USD" else "€" if currency == "EUR" else "¥"
                 )
                 sign = "-" if pos.quantity < 0 else "+"
-                stock_content += f"\n${pos.instrument.symbol}: {sign}{int(abs(pos.quantity))}@{currency_symbol}{pos.market_price}"
+
+                stock_content += (
+                    f"\n${pos.instrument.symbol:<{max_symbol}} "
+                    f"{sign}{int(abs(pos.quantity)):>{max_quantity}}"
+                    f"@{currency_symbol}{pos.market_price:<{max_price}.2f}"
+                )
 
             messages.append(
                 Message(
@@ -55,8 +65,18 @@ class PortfolioFormatter:
                 )
             )
 
-        # Format option positions
+        # Format option positions with alignment
         if option_positions:
+            # Calculate max widths for each column
+            max_symbol = max(len(p.instrument.symbol) for p in option_positions)
+            max_strike = max(
+                len(f"{p.instrument.option_details.strike}")
+                for p in option_positions
+                if p.instrument.option_details
+            )
+            max_quantity = max(len(str(abs(int(p.quantity)))) for p in option_positions)
+            max_price = max(len(f"{p.market_price:.2f}") for p in option_positions)
+
             option_content = "🎯 Options:"
             for pos in option_positions:
                 if not pos.instrument.option_details:
@@ -76,8 +96,11 @@ class PortfolioFormatter:
                 sign = "-" if pos.quantity < 0 else "+"
 
                 option_content += (
-                    f"\n${pos.instrument.symbol} {expiry} {currency_symbol}{strike}{option_type}: "
-                    f"{sign}{int(abs(pos.quantity))}@{currency_symbol}{pos.market_price}"
+                    f"\n${pos.instrument.symbol:<{max_symbol}} "
+                    f"{expiry} "
+                    f"{currency_symbol}{strike:<{max_strike}}{option_type} "
+                    f"{sign}{int(abs(pos.quantity)):>{max_quantity}}"
+                    f"@{currency_symbol}{pos.market_price:<{max_price}.2f}"
                 )
 
             messages.append(
