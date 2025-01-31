@@ -23,20 +23,19 @@ def test_portfolio_message_split():
     # Create a long portfolio with many positions to force splitting
     stocks = []
     options = []
-    
+
     # Add many stock positions
     for i in range(20):
-        stocks.append(f"$STOCK{i:02d} +{100+i}@${150.25+i:.2f}")
-    
+        stocks.append(f"$STOCK{i:02d} +{100 + i}@${150.25 + i:.2f}")
+
     # Add many option positions
     for i in range(20):
-        options.append(f"$OPT{i:02d} {15+i}JUN24 ${150+i}C +{2+i}@${3.50+i:.2f}")
-    
+        options.append(
+            f"$OPT{i:02d} {15 + i}JUN24 ${150 + i}C +{2 + i}@${3.50 + i:.2f}"
+        )
+
     content = (
-        "📊 Stocks:\n" + 
-        "\n".join(stocks) + 
-        "\n\n🎯 Options:\n" + 
-        "\n".join(options)
+        "📊 Stocks:\n" + "\n".join(stocks) + "\n\n🎯 Options:\n" + "\n".join(options)
     )
 
     message = Message(
@@ -46,23 +45,23 @@ def test_portfolio_message_split():
     )
 
     tweets = MessageSplitter.split_to_tweets(message)
-    
+
     # Log tweets for debugging
     for i, tweet in enumerate(tweets):
-        logger.info(f"Tweet {i+1}: {tweet.content}")
-    
+        logger.info(f"Tweet {i + 1}: {tweet.content}")
+
     # Verify splitting occurred
     assert len(tweets) > 1
     assert "🧵" in tweets[0].content
     assert "(1/" in tweets[0].content
     assert f"({len(tweets)}/{len(tweets)})" in tweets[-1].content
-    
+
     # Verify no records are split
     for tweet in tweets:
-        lines = tweet.content.split('\n')
+        lines = tweet.content.split("\n")
         for line in lines:
-            if line.startswith('$'):
-                assert '@$' in line  # Complete record should have price
+            if line.startswith("$"):
+                assert "@$" in line  # Complete record should have price
 
 
 def test_metadata_preservation():

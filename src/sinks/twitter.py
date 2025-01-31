@@ -48,7 +48,14 @@ class TwitterSink(MessageSink):
                         text=tweet.content, in_reply_to_tweet_id=previous_tweet_id
                     )
                     logger.info(f"Response: {response}")
-                    previous_tweet_id = response.data.get("id", None)
+                    # Tweepy Response object contains a data dict with tweet info
+                    if isinstance(response, tweepy.Response):
+                        tweet_data = response.data
+                        if tweet_data:
+                            previous_tweet_id = tweet_data.get("id", None)
+                        else:
+                            logger.error("No tweet data in response")
+                            return False
                     logger.debug(f"Published tweet: {tweet.content}")
                 except Exception as e:
                     logger.error(f"Error publishing tweet: {str(e)}")

@@ -9,6 +9,21 @@ class PortfolioFormatter:
     def format_portfolio(
         self, positions: List[Position], timestamp: datetime
     ) -> Message:
+        if not positions:
+            return Message(
+                content="No positions",
+                timestamp=timestamp,
+                metadata={"type": "portfolio"},
+            )
+
+        # Format the date in a readable format
+        date_str = timestamp.strftime("%d %b %Y").upper()
+
+        content = []
+        # Add title
+        content.append(f"Portfolio on {date_str}")
+        content.append("")  # Empty line after title
+
         # Separate and sort positions
         stock_positions = [
             p for p in positions if p.instrument.type == InstrumentType.STOCK
@@ -33,8 +48,6 @@ class PortfolioFormatter:
             )
         )
 
-        content = []
-
         # Format stock positions with alignment
         if stock_positions:
             # Calculate max widths for each column
@@ -58,6 +71,9 @@ class PortfolioFormatter:
 
         # Format option positions with alignment
         if option_positions:
+            if stock_positions:  # Add blank line if we had stocks
+                content.append("")
+
             # Calculate max widths for each column
             max_symbol = max(len(p.instrument.symbol) for p in option_positions)
             max_strike = max(
@@ -68,8 +84,6 @@ class PortfolioFormatter:
             max_quantity = max(len(str(abs(int(p.quantity)))) for p in option_positions)
             max_price = max(len(f"{p.market_price:.2f}") for p in option_positions)
 
-            if content:  # Add a blank line if we had stocks
-                content.append("")
             content.append("🎯 Options:")
             for pos in option_positions:
                 if not pos.instrument.option_details:
@@ -97,7 +111,7 @@ class PortfolioFormatter:
                 )
 
         return Message(
-            content="\n".join(content) if content else "No positions",
+            content="\n".join(content),
             timestamp=timestamp,
             metadata={"type": "portfolio"},
         )
