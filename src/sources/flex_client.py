@@ -81,7 +81,7 @@ class FlexClient:
                 return
 
             self._save_report(report, "portfolio")
-            for pos in self.parser.parse_positions_from_df(report.df("Position")):
+            for pos in self.parser.parse_positions_from_df(report.df("OpenPosition")):
                 yield pos
         except Exception as e:
             logger.error(f"Error fetching positions: {str(e)}")
