@@ -1,6 +1,6 @@
 import pytest
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from decimal import Decimal
 from models.trade import Trade
 from formatters.trade import TradeFormatter
@@ -61,7 +61,7 @@ async def test_cli_sink_stock_trade(cli_sink, json_source, trade_formatter, caps
     # Check output
     captured = capsys.readouterr()
     logger.info("captured.out: %s", captured.out)
-    assert "Buy" in captured.out
+    assert "BUY" in captured.out
     assert "$BABA" in captured.out
     assert "100" in captured.out
     assert "$96.03" in captured.out
@@ -98,57 +98,12 @@ async def test_cli_sink_option_trade(cli_sink, json_source, trade_formatter, cap
     # Check output
     captured = capsys.readouterr()
     logger.info("captured.out: %s", captured.out)
-    assert "Buy" in captured.out
+    assert "BUY" in captured.out
     assert "$NVDA" in captured.out
     assert "18JUL25" in captured.out
     assert "100P" in captured.out
     assert "1111" in captured.out
     assert "$4.37" in captured.out
-
-
-@pytest.mark.asyncio
-async def test_cli_sink_closing_trade(cli_sink, json_source, trade_formatter, capsys):
-    # Get PLTR short position from source
-    positions = [pos async for pos in json_source.get_positions()]
-    pltr_position = next(p for p in positions if p.instrument.symbol == "PLTR")
-
-    # Create opening trade
-    opening_trade = Trade(
-        instrument=pltr_position.instrument,
-        quantity=Decimal("-200"),
-        price=Decimal("76.59"),
-        side="SELL",
-        timestamp=datetime.now(timezone.utc) - timedelta(hours=2),
-        source_id="test-source",
-        trade_id="test-trade-3",
-        currency="USD",
-    )
-
-    # Create closing trade
-    closing_trade = Trade(
-        instrument=pltr_position.instrument,
-        quantity=Decimal("200"),
-        price=Decimal("80.23"),
-        side="BUY",
-        timestamp=datetime.now(timezone.utc),
-        source_id="test-source",
-        trade_id="test-trade-4",
-        currency="USD",
-    )
-
-    # Format trade using formatter with matching trade
-    message = trade_formatter.format_trade(closing_trade, opening_trade)
-
-    # Publish to CLI sink
-    await cli_sink.publish(message)
-
-    # Check output
-    captured = capsys.readouterr()
-    logger.info("captured.out: %s", captured.out)
-    assert "closed" in captured.out
-    assert "$PLTR" in captured.out
-    assert "4.75%" in captured.out
-    assert "2 hours" in captured.out
 
 
 @pytest.mark.asyncio
@@ -174,23 +129,8 @@ async def test_cli_sink_real_trades(cli_sink, json_source, trade_formatter, caps
         currency="USD",
     )
 
-    closing_trade = Trade(
-        instrument=meta_position.instrument,
-        quantity=Decimal("-222"),
-        price=Decimal("4.92"),
-        side="SELL",
-        timestamp=datetime(2025, 1, 29, 15, 10, 39, tzinfo=timezone.utc),
-        source_id="test-source",
-        trade_id="467074826",
-        currency="USD",
-    )
-
     # Format and publish opening trade
     message = trade_formatter.format_trade(opening_trade)
-    await cli_sink.publish(message)
-
-    # Format and publish closing trade
-    message = trade_formatter.format_trade(closing_trade, opening_trade)
     await cli_sink.publish(message)
 
     # Check output
@@ -199,13 +139,8 @@ async def test_cli_sink_real_trades(cli_sink, json_source, trade_formatter, caps
     output = captured.out
 
     # Verify opening trade
-    assert "Buy" in output
+    assert "BUY" in output
     assert "$META" in output
     assert "715C" in output
     assert "222" in output
     assert "$9.20" in output
-
-    # Verify closing trade
-    assert "closed" in output
-    assert "46.52%" in output
-    assert "3 hours" in output

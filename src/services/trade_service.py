@@ -1,16 +1,20 @@
-from typing import List, Dict, Tuple, Optional
-from decimal import Decimal
+from typing import List, Dict, Optional
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from models.trade import Trade
 from models.message import Message
 from models.db_trade import DBTrade
-from models.instrument import InstrumentType
 from sources.base import TradeSource
 from sinks.base import MessageSink
 from formatters.trade import TradeFormatter
+
+from services.trade_processor import (
+    TradeProcessor,
+    ProcessingResult,
+)
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,46 +26,61 @@ class TradeService:
         sinks: Dict[str, MessageSink],
         db: AsyncSession,
         formatter: TradeFormatter,
+        position_service=None,  # Inject position service
     ):
         self.sources = sources
         self.sinks = sinks
         self.db = db
         self.formatter = formatter
+        self.position_service = position_service
 
-    async def get_new_trades(self) -> List[Tuple[Trade, Optional[Trade]]]:
-        """Get new trades from all sources with their matching trades if any."""
-        new_trades = []
+    async def get_new_trades(self) -> List[ProcessingResult]:
+        """Get and process new trades from all sources."""
+        all_trades = []
+        saved_trades = []
+
+        # 1. Collect and save all new trades from sources
         for source in self.sources.values():
             logger.debug(f"Processing trades from {source.source_id}")
             async for trade in source.get_last_day_trades():
-                if await self._is_trade_published(trade):
-                    continue
+                if not await self._is_trade_published(trade):
+                    await self._save_trade(trade)
+                    saved_trades.append(trade)
+                    all_trades.append(trade)
 
-                matching_trade = await self._find_matching_trade(trade)
-                await self._save_trade(trade, matching_trade)
+        if not all_trades:
+            return []
 
-                new_trades.append(
-                    (trade, matching_trade.to_domain() if matching_trade else None)
-                )
-        return new_trades
+        # 2. Get current portfolio positions
+        positions = []
+        if self.position_service:
+            for source in self.sources.values():
+                logger.info(f"Getting positions from {source.source_id}")
+                positions.extend(await self.position_service.get_positions(source))
 
-    async def publish_trades(self, trades: List[Tuple[Trade, Optional[Trade]]]) -> None:
-        """Format and publish a batch of trades to all sinks."""
+        # 3. Process trades through pipeline
+        processor = TradeProcessor(positions)
+        processed_results = processor.process_trades(all_trades)
+        logger.info(f"Processed results: {processed_results}")
+
+        return processed_results
+
+    async def publish_trades(self, trades: List[ProcessingResult]) -> None:
+        """Publish processed trades to all sinks."""
         if not trades:
             return
 
         # Get timestamp of most recent trade
-        last_trade_timestamp = max(trade.timestamp for trade, _ in trades)
+        last_trade_timestamp = max(trade.timestamp for trade in trades)
         date_str = last_trade_timestamp.strftime("%d %b %Y %H:%M").upper()
-
-        # Format message content
+        # Format trades into messages
         content = [
             f"Trades on {date_str}",
             "",  # Empty line after header
         ]
 
-        for trade, matching_trade in trades:
-            message = self.formatter.format_trade(trade, matching_trade)
+        for trade in trades:
+            message = self.formatter.format_trade(trade)
             content.append(message.content)
 
         # Create combined message
@@ -86,56 +105,6 @@ class TradeService:
         )
         result = await self.db.execute(query)
         return result.scalar_one_or_none() is not None
-
-    async def _find_matching_trade(self, trade: Trade) -> Optional[DBTrade]:
-        """Find a matching trade that closes a position."""
-        # Only look for matches if this is a closing trade
-        if trade.quantity > 0:
-            return None
-
-        # Build query to find matching opening trade
-        query = select(DBTrade).where(
-            DBTrade.source_id == trade.source_id,
-            DBTrade.symbol == trade.instrument.symbol,
-            DBTrade.matched.is_(False),  # Use is_ instead of == False
-        )
-
-        # Add instrument-specific conditions
-        if (
-            trade.instrument.type == InstrumentType.OPTION
-            and trade.instrument.option_details
-        ):
-            query = query.where(
-                DBTrade.strike == trade.instrument.option_details.strike,
-                DBTrade.expiry == trade.instrument.option_details.expiry,
-                DBTrade.option_type == trade.instrument.option_details.option_type,
-            )
-
-        result = await self.db.execute(query)
-        candidates = result.scalars().all()
-
-        # Find the best matching trade (closest timestamp)
-        best_match = None
-        best_timestamp = None
-        for candidate in candidates:
-            # Convert SQLAlchemy Decimal to Python Decimal for comparison
-            candidate_quantity = Decimal(str(candidate.quantity))
-            trade_quantity = Decimal(str(trade.quantity))
-
-            # Skip if quantities don't match
-            if abs(candidate_quantity) != abs(trade_quantity):
-                continue
-
-            # Skip if signs are the same (both buy or both sell)
-            if (candidate_quantity > 0) == (trade_quantity > 0):
-                continue
-
-            candidate_timestamp = candidate.timestamp
-            if best_timestamp is None or str(candidate_timestamp) > str(best_timestamp):
-                best_match = candidate
-                best_timestamp = candidate_timestamp
-
-        return best_match
 
     async def _save_trade(
         self, trade: Trade, matching_trade: Optional[DBTrade] = None

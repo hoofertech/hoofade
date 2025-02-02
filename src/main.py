@@ -77,7 +77,9 @@ class TradePublisher:
         formatter: TradeFormatter,
     ):
         self.position_service = PositionService(sources, sinks)
-        self.trade_service = TradeService(sources, sinks, db, formatter)
+        self.trade_service = TradeService(
+            sources, sinks, db, formatter, self.position_service
+        )
         self.sources = sources
 
     async def run(self):

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 def test_short_message_no_split():
     message = Message(
-        content="🚨 Buy $AAPL 100@$150.25",
+        content="🚨 BUY $AAPL 100@$150.25",
         timestamp=datetime.now(timezone.utc),
         metadata={"type": "trade"},
     )
