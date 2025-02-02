@@ -57,7 +57,11 @@ class TradeFormatter:
 
     def _format_profit_taker(self, profit_taker: ProfitTaker) -> Message:
         """Format a profit taker with its component trades"""
-        pl_sign = "+" if profit_taker.profit_percentage > 0 else ""
+        is_profit = profit_taker.profit_percentage > 0
+        pl_sign = "+" if is_profit else ""
+        pl_text = "PROFIT" if is_profit else "LOSS"
+        pl_emoji = "📈" if is_profit else "📉"
+
         hold_time = profit_taker.sell_trade.timestamp - profit_taker.buy_trade.timestamp
         hold_time_str = self._format_hold_time(hold_time)
 
@@ -81,12 +85,12 @@ class TradeFormatter:
 
         # Main profit/loss line
         content = [
-            f"📊 PROFIT {hold_time_str}",
+            f"{pl_emoji} {pl_text} {hold_time_str}",
             f"{symbol_text:<{symbol_width}} "
             f"{int(quantity):>{quantity_width}} @ "
             f"{currency_symbol}{profit_taker.sell_trade.weighted_price:>{price_width}.2f} "
             f"-> {pl_sign}{profit_taker.profit_percentage:>{pl_width}.2f}% "
-            f"({currency_symbol}{profit_taker.profit_amount:.2f})",
+            f"({currency_symbol}{abs(profit_taker.profit_amount):.2f})",
         ]
 
         # Add component trades indented
@@ -100,6 +104,7 @@ class TradeFormatter:
                 "type": "profit_taker",
                 "profit_amount": profit_taker.profit_amount,
                 "profit_percentage": profit_taker.profit_percentage,
+                "is_profit": is_profit,
             },
         )
 

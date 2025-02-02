@@ -186,15 +186,32 @@ class TradeProcessor:
             matched_buy = self._create_partial_combined_trade(buy, matched_quantity)
             matched_sell = self._create_partial_combined_trade(sell, matched_quantity)
 
-            # Calculate profit for matched portion
+            # Determine which trade came first
+            first_trade = (
+                matched_buy
+                if matched_buy.timestamp < matched_sell.timestamp
+                else matched_sell
+            )
+            second_trade = (
+                matched_sell
+                if matched_buy.timestamp < matched_sell.timestamp
+                else matched_buy
+            )
+
+            # Calculate profit based on chronological order
             profit_amount = (
-                matched_sell.weighted_price - matched_buy.weighted_price
+                second_trade.weighted_price - first_trade.weighted_price
             ) * matched_quantity
             profit_percentage = (
-                (matched_sell.weighted_price - matched_buy.weighted_price)
-                / matched_buy.weighted_price
+                (second_trade.weighted_price - first_trade.weighted_price)
+                / first_trade.weighted_price
                 * Decimal("100")
             )
+
+            # If the sell came first, it's a short trade, so invert the profit
+            if first_trade.side == "SELL":
+                profit_amount = -profit_amount
+                profit_percentage = -profit_percentage
 
             profit_takers.append(
                 ProfitTaker(
