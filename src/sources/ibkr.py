@@ -39,8 +39,8 @@ class IBKRSource(TradeSource):
                 save_dir=save_dir,
             )
         )
-        self.positions = []
-
+        self.positions: List[Position] = []
+        self.last_day_trades: List[Trade] = []
     async def load_positions(self) -> bool:
         try:
             # Test connection by fetching positions
@@ -59,7 +59,7 @@ class IBKRSource(TradeSource):
             logger.error(f"Failed to fetch positions: {str(e)}")
             return
 
-    async def get_last_day_trades(self) -> AsyncIterator[Trade]:
+    async def load_last_day_trades(self) -> bool:
         try:
             executions = [
                 exec async for exec in self.flex_client.get_trades(self.source_id)
@@ -67,12 +67,17 @@ class IBKRSource(TradeSource):
             if not executions:
                 return
             since = self.get_min_datetime_for_last_day(executions)
-            for exec in executions:
-                if exec.timestamp >= since:
-                    yield exec
+            self.last_day_trades = [
+                exec for exec in executions if exec.timestamp >= since
+            ]
+            return True
         except Exception as e:
             logger.error(f"Error fetching trades: {str(e)}")
+            return False
 
+    def get_last_day_trades(self) -> List[Trade]:
+        return self.last_day_trades
+    
     @staticmethod
     def get_min_datetime_for_last_day(executions: List[Trade]) -> datetime:
         last_day_in_data = max(exec.timestamp for exec in executions)
@@ -80,3 +85,6 @@ class IBKRSource(TradeSource):
 
     def is_done(self) -> bool:
         return False
+
+    def get_sleep_time(self) -> int:
+        return 900

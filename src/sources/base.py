@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import AsyncIterator
+from typing import AsyncIterator, List
 from models.trade import Trade
 from models.position import Position
 
@@ -19,11 +19,21 @@ class TradeSource(ABC):
         pass
 
     @abstractmethod
-    def get_last_day_trades(self) -> AsyncIterator[Trade]:
+    async def load_last_day_trades(self) -> bool:
+        """Load trades for the last day"""
+        pass
+
+    @abstractmethod
+    def get_last_day_trades(self) -> List[Trade]:
         """Get trades for the last day"""
         pass
 
     @abstractmethod
     def is_done(self) -> bool:
         """Check if the source is done"""
+        pass
+
+    @abstractmethod
+    def get_sleep_time(self) -> int:
+        """Get the sleep time for the source"""
         pass

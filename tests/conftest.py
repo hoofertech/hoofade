@@ -7,7 +7,7 @@ from models.message import Message
 from sources.base import TradeSource
 from sinks.base import MessageSink
 from sinks.twitter import TwitterSink
-from typing import AsyncIterator
+from typing import AsyncIterator, List
 from models.position import Position
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from models.db_trade import Base
@@ -23,15 +23,20 @@ class MockTradeSource(TradeSource):
         for position in self.positions:
             yield position
 
-    async def get_last_day_trades(self) -> AsyncIterator[Trade]:
-        for trade in self.trades:
-            yield trade
-
     async def load_positions(self) -> bool:
         return True
+    
+    async def load_last_day_trades(self) -> bool:
+        return True
+
+    def get_last_day_trades(self) -> List[Trade]:
+        return self.trades
 
     def is_done(self) -> bool:
         return True
+
+    def get_sleep_time(self) -> int:
+        return 1
 
 
 class MockMessageSink(MessageSink):

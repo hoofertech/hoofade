@@ -42,7 +42,7 @@ class TradeService:
         # 1. Collect and save all new trades from sources
         for source in self.sources.values():
             logger.debug(f"Processing trades from {source.source_id}")
-            async for trade in source.get_last_day_trades():
+            for trade in source.get_last_day_trades():
                 if not await self._is_trade_published(trade):
                     await self._save_trade(trade)
                     saved_trades.append(trade)

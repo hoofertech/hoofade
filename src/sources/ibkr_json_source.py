@@ -20,6 +20,9 @@ class JsonSource(TradeSource):
         self.data_dir = Path(data_dir)
         self.positions: List[Position] = []
         self.parser = FlexReportParser()
+        self.iter = 0
+        self.last_day_trades: List[Trade] = []
+        self.json_done = False
 
     async def load_positions(self) -> bool:
         try:
@@ -47,7 +50,8 @@ class JsonSource(TradeSource):
         for pos in self.positions:
             yield pos
 
-    async def get_last_day_trades(self) -> AsyncIterator[Trade]:
+    async def load_last_day_trades(self) -> bool:
+        NUM_TRADERS_PER_ITERATION = 10
         try:
             trades_data = self.parser.load_latest_trades(self.data_dir)
             if trades_data is None:
@@ -59,11 +63,27 @@ class JsonSource(TradeSource):
             if not parsed_trades:
                 return
             since = self.get_min_datetime_for_last_day(parsed_trades)
-            for trade in parsed_trades:
-                if trade.timestamp >= since:
-                    yield trade
+            self.last_day_trades = [
+                trade for trade in parsed_trades if trade.timestamp >= since
+            ]
+            if self.iter * NUM_TRADERS_PER_ITERATION < len(parsed_trades):
+                start_index = self.iter * NUM_TRADERS_PER_ITERATION
+                end_index = min(start_index + NUM_TRADERS_PER_ITERATION, len(parsed_trades))
+                self.last_day_trades = [
+                    trade for trade in parsed_trades[start_index:end_index] if trade.timestamp >= since
+                ]
+            else:
+                self.last_day_trades = []
+                self.json_done = True
+            logger.info(f"Loaded {len(self.last_day_trades)} trades for {self.source_id}")
+            self.iter += 1
+            return True
         except Exception as e:
             logger.error(f"Error fetching trades: {e}")
+            return False
+
+    def get_last_day_trades(self) -> List[Trade]:
+        return self.last_day_trades
 
     @staticmethod
     def get_min_datetime_for_last_day(trades: List[Trade]) -> datetime:
@@ -71,4 +91,7 @@ class JsonSource(TradeSource):
         return last_day_in_data.replace(hour=0, minute=0, second=0, microsecond=0)
 
     def is_done(self) -> bool:
-        return False
+        return self.json_done
+
+    def get_sleep_time(self) -> int:
+        return 1
