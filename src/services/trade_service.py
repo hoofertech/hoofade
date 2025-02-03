@@ -129,10 +129,10 @@ class TradeService:
 
         return False
 
-    async def publish_trades(self, trades: List[ProcessingResult]) -> None:
+    async def publish_trades(self, trades: List[ProcessingResult]) -> bool:
         """Publish processed trades to all sinks."""
         if not trades:
-            return
+            return True
 
         # Get timestamp of most recent trade
         last_trade_timestamp = max(trade.timestamp for trade in trades)
@@ -153,6 +153,7 @@ class TradeService:
             metadata={"type": "trade_batch"},
         )
 
+        publish_success = True
         # Publish to all sinks
         for sink in self.sinks.values():
             if sink.can_publish():
@@ -160,6 +161,9 @@ class TradeService:
                     logger.debug(f"Published {len(trades)} trades to {sink.sink_id}")
                 else:
                     logger.warning(f"Failed to publish trades to {sink.sink_id}")
+                    publish_success = False
+
+        return publish_success
 
     async def _is_trade_published(self, trade: Trade) -> bool:
         """Check if a trade has already been published."""

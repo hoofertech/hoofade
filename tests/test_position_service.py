@@ -4,37 +4,39 @@ from services.position_service import PositionService
 
 
 @pytest.fixture
-def position_service(mock_source, mock_sink):
+def position_service(mock_source, mock_sink, db_session):
     sources = {"test": mock_source}
     sinks = {"test": mock_sink}
-    return PositionService(sources, sinks)
+    return PositionService(sources, sinks, db_session)
 
 
 @pytest.mark.asyncio
 async def test_publish_portfolio(
-    position_service, mock_source, mock_sink, sample_positions
+    position_service, mock_source, mock_sink, sample_positions, test_timestamp
 ):
     mock_source.positions = sample_positions
-    await position_service.publish_portfolio(mock_source)
+    await position_service.publish_portfolio(mock_source, test_timestamp)
 
     assert len(mock_sink.messages) == 1
     message = mock_sink.messages[0]
 
     # Verify content structure
     lines = message.content.split("\n")
-    expected_date = datetime.now(timezone.utc).strftime("%d %b %Y").upper()
+    expected_date = test_timestamp.strftime("%d %b %Y").upper()
     assert lines[0] == f"Portfolio on {expected_date}"
     assert message.metadata["type"] == "portfolio"
 
-
-def test_should_post_portfolio(position_service, test_timestamp):
+@pytest.mark.asyncio
+async def test_should_post_portfolio(position_service, mock_source, test_timestamp):
     # Should post if never posted
-    assert position_service.should_post_portfolio(test_timestamp) is True
-
+    assert await position_service.should_post_portfolio(mock_source.source_id, test_timestamp) is True
+    await position_service.publish_portfolio(mock_source, test_timestamp)
+    
     # Should not post if already posted today
-    position_service.last_portfolio_post = test_timestamp + timedelta(hours=1)
-    assert position_service.should_post_portfolio(test_timestamp) is False
+    an_hour_later = test_timestamp + timedelta(hours=1)
+    assert await position_service.should_post_portfolio(mock_source.source_id, an_hour_later) is False
+    await position_service.publish_portfolio(mock_source, an_hour_later)
 
-    # Should post if last post was yesterday
-    position_service.last_portfolio_post = test_timestamp - timedelta(days=1)
-    assert position_service.should_post_portfolio(test_timestamp) is True
+    # Should post if a day has passed
+    tomorrow = test_timestamp + timedelta(days=1)
+    assert await position_service.should_post_portfolio(mock_source.source_id, tomorrow) is True

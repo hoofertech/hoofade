@@ -66,9 +66,10 @@ class JsonSource(TradeSource):
                 trade for trade in parsed_trades if trade.timestamp >= since
             ]
             if self.iter * NUM_TRADERS_PER_ITERATION < len(parsed_trades):
-                start_index = self.iter * NUM_TRADERS_PER_ITERATION
+                start_index = 0
+                next_start_index = start_index = self.iter * NUM_TRADERS_PER_ITERATION
                 end_index = min(
-                    start_index + NUM_TRADERS_PER_ITERATION, len(parsed_trades)
+                    next_start_index + NUM_TRADERS_PER_ITERATION, len(parsed_trades)
                 )
                 self.last_day_trades = [
                     trade

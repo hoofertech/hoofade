@@ -77,7 +77,7 @@ class TradePublisher:
         db: AsyncSession,
         formatter: TradeFormatter,
     ):
-        self.position_service = PositionService(sources, sinks)
+        self.position_service = PositionService(sources, sinks, db)
         self.trade_service = TradeService(
             sources, sinks, db, formatter, self.position_service
         )
@@ -89,24 +89,32 @@ class TradePublisher:
             now = datetime.now(timezone.utc)
             all_sources_done = False
             max_sleep = 0
+
             for source in self.sources.values():
-                if self.position_service.should_post_portfolio(now):
+                # Check if we should post portfolio
+                should_post = await self.position_service.should_post_portfolio(
+                    source.source_id, now
+                )
+
+                if should_post:
                     if not await source.load_positions():
                         logger.error(f"Failed to connect to source {source.source_id}")
                         continue
-                    await self.position_service.publish_portfolio(source)
+                    await self.position_service.publish_portfolio(source, now)
                 else:
                     logger.info(f"Skipping portfolio for source {source.source_id}")
 
+                # Process trades
                 if not await source.load_last_day_trades():
                     logger.error(f"Failed to load trades for source {source.source_id}")
                     continue
-                else:
-                    logger.info(f"Loaded trades for source {source.source_id}")
+
                 new_trades = await self.trade_service.get_new_trades()
                 await self.trade_service.publish_trades(new_trades)
+
                 all_sources_done = all_sources_done or source.is_done()
                 max_sleep = max(max_sleep, source.get_sleep_time())
+
             if all_sources_done:
                 break
             await asyncio.sleep(max_sleep)
