@@ -199,9 +199,17 @@ class TradeProcessor:
             )
 
             # Calculate profit based on chronological order
-            profit_amount = (
-                second_trade.weighted_price - first_trade.weighted_price
-            ) * matched_quantity
+            price_diff = second_trade.weighted_price - first_trade.weighted_price
+
+            # Multiply by 100 for options
+            contract_multiplier = (
+                Decimal("100")
+                if first_trade.instrument.type == InstrumentType.OPTION
+                else Decimal("1")
+            )
+
+            profit_amount = price_diff * matched_quantity * contract_multiplier
+
             profit_percentage = (
                 (second_trade.weighted_price - first_trade.weighted_price)
                 / first_trade.weighted_price
@@ -308,26 +316,6 @@ class TradeProcessor:
                     # Calculate matched quantity
                     matched_quantity = min(abs(position.quantity), trade.quantity)
 
-                    # Calculate profit
-                    if trade.side == "SELL":
-                        profit_amount = (
-                            trade.weighted_price - position.cost_basis
-                        ) * matched_quantity
-                        profit_percentage = (
-                            (trade.weighted_price - position.cost_basis)
-                            / position.cost_basis
-                            * Decimal("100")
-                        )
-                    else:  # BUY
-                        profit_amount = (
-                            position.cost_basis - trade.weighted_price
-                        ) * matched_quantity
-                        profit_percentage = (
-                            (position.cost_basis - trade.weighted_price)
-                            / trade.weighted_price
-                            * Decimal("100")
-                        )
-
                     # Create synthetic trade from position for matched portion
                     position_trade = CombinedTrade(
                         instrument=position.instrument,
@@ -336,13 +324,41 @@ class TradeProcessor:
                         trades=[],  # No actual trades since this is from position
                         timestamp=trade.timestamp,
                         side="SELL" if position.is_short else "BUY",
-                        currency=trade.currency,
+                        currency=trade.currency,  # Use same currency as matching trade
                     )
 
                     # Create partial trade for matched portion
                     matched_trade = self._create_partial_combined_trade(
                         trade, matched_quantity
                     )
+
+                    # Determine which came first chronologically
+                    first_trade = position_trade
+                    second_trade = matched_trade
+
+                    # Calculate profit based on chronological order
+                    price_diff = (
+                        second_trade.weighted_price - first_trade.weighted_price
+                    )
+
+                    # Multiply by 100 for options
+                    contract_multiplier = (
+                        Decimal("100")
+                        if position.instrument.type == InstrumentType.OPTION
+                        else Decimal("1")
+                    )
+                    profit_amount = price_diff * matched_quantity * contract_multiplier
+
+                    profit_percentage = (
+                        (second_trade.weighted_price - first_trade.weighted_price)
+                        / first_trade.weighted_price
+                        * Decimal("100")
+                    )
+
+                    # If the sell came first, it's a short trade, so invert the profit
+                    if first_trade.side == "SELL":
+                        profit_amount = -profit_amount
+                        profit_percentage = -profit_percentage
 
                     portfolio_matches.append(
                         ProfitTaker(
