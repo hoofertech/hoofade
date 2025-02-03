@@ -85,12 +85,9 @@ class TradePublisher:
 
     async def run(self):
         """Main loop to process trades periodically"""
-        json_only_sources = all(
-            isinstance(src, JsonSource) for src in self.sources.values()
-        )
-
         while True:
             now = datetime.now(timezone.utc)
+            all_sources_done = False
             for source in self.sources.values():
                 if self.position_service.should_post_portfolio(now):
                     if not await source.load_positions():
@@ -100,8 +97,9 @@ class TradePublisher:
 
                 new_trades = await self.trade_service.get_new_trades()
                 await self.trade_service.publish_trades(new_trades)
+                all_sources_done = all_sources_done or source.is_done()
 
-            if json_only_sources:
+            if all_sources_done:
                 break
             await asyncio.sleep(900)  # Sleep for 15 minutes
 

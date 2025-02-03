@@ -30,6 +30,9 @@ class MockTradeSource(TradeSource):
     async def load_positions(self) -> bool:
         return True
 
+    def is_done(self) -> bool:
+        return True
+
 
 class MockMessageSink(MessageSink):
     def __init__(self, sink_id: str):

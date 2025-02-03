@@ -22,3 +22,8 @@ class TradeSource(ABC):
     def get_last_day_trades(self) -> AsyncIterator[Trade]:
         """Get trades for the last day"""
         pass
+
+    @abstractmethod
+    def is_done(self) -> bool:
+        """Check if the source is done"""
+        pass

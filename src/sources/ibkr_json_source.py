@@ -69,3 +69,6 @@ class JsonSource(TradeSource):
     def get_min_datetime_for_last_day(trades: List[Trade]) -> datetime:
         last_day_in_data = max(trade.timestamp for trade in trades)
         return last_day_in_data.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    def is_done(self) -> bool:
+        return False
