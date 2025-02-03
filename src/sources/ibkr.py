@@ -51,13 +51,8 @@ class IBKRSource(TradeSource):
             logger.error(f"Failed to connect to IBKR Flex: {str(e)}")
             return False
 
-    async def get_positions(self) -> AsyncIterator[Position]:
-        try:
-            for pos in self.positions:
-                yield pos
-        except Exception as e:
-            logger.error(f"Failed to fetch positions: {str(e)}")
-            return
+    def get_positions(self) -> List[Position]:
+        return self.positions
 
     async def load_last_day_trades(self) -> bool:
         try:

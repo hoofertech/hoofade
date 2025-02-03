@@ -127,9 +127,7 @@ class TradeFormatter:
         pl_text = "PROFIT" if is_profit else "LOSS"
         pl_emoji = "📈" if is_profit else "📉"
 
-        # Get currency from first trade
-        first_trade = profit_taker.buy_trade.trades[0]
-        currency = first_trade.currency
+        currency = profit_taker.currency
         currency_symbol = self._get_currency_symbol(currency)
 
         symbol_text = self._format_instrument(

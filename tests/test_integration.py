@@ -26,7 +26,7 @@ async def test_end_to_end_flow_with_option_trade(
     formatter = TradeFormatter()
 
     # Process trade from source
-    trades = [trade async for trade in mock_source.get_last_day_trades()]
+    trades = [trade for trade in mock_source.get_last_day_trades()]
     assert len(trades) == 1
 
     # Format trade

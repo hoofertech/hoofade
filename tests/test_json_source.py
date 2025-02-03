@@ -26,7 +26,7 @@ async def test_json_source_load_positions(test_data_dir):
 
 @pytest.mark.asyncio
 async def test_json_source_get_positions(json_source):
-    positions = [pos async for pos in json_source.get_positions()]
+    positions = json_source.get_positions()
     assert len(positions) > 0
 
     # Test stock position
@@ -51,7 +51,7 @@ async def test_json_source_get_positions(json_source):
 
 @pytest.mark.asyncio
 async def test_json_source_negative_positions(json_source):
-    positions = [pos async for pos in json_source.get_positions()]
+    positions = json_source.get_positions()
 
     # Test negative stock position (short)
     pltr_position = next(p for p in positions if p.instrument.symbol == "PLTR")

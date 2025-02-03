@@ -57,6 +57,9 @@ class PortfolioFormatter:
 
             content.append("📊 Stocks:")
             for pos in stock_positions:
+                if pos.quantity == 0:
+                    continue
+
                 currency = pos.instrument.currency
                 currency_symbol = (
                     "$" if currency == "USD" else "€" if currency == "EUR" else "¥"
@@ -86,7 +89,7 @@ class PortfolioFormatter:
 
             content.append("🎯 Options:")
             for pos in option_positions:
-                if not pos.instrument.option_details:
+                if not pos.instrument.option_details or pos.quantity == 0:
                     continue
 
                 currency = pos.instrument.currency

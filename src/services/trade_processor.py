@@ -41,7 +41,11 @@ class ProfitTaker:
     def instrument(self) -> Instrument:
         """Get the instrument from the buy or sell trade"""
         return self.buy_trade.instrument
-
+    
+    @property
+    def currency(self) -> str:
+        """Get the currency from the buy or sell trade"""
+        return self.buy_trade.currency
 
 ProcessingResult = Union[Trade, CombinedTrade, ProfitTaker]
 
@@ -54,7 +58,7 @@ class TradeProcessor:
             for position in portfolio
         }
 
-    def process_trades(self, trades: List[Trade]) -> List[ProcessingResult]:
+    def process_trades(self, trades: List[Trade]) -> Tuple[List[ProcessingResult], Dict[str, List[CombinedTrade]]]:
         if not trades:
             return []
 
@@ -92,7 +96,7 @@ class TradeProcessor:
         for _, rem_trade in remaining_sorted:
             results = rem_trade + results
 
-        return results
+        return results, portfolio_matches
 
     def _get_instrument_key_from_instrument(self, instrument: Instrument) -> str:
         """Generate a unique key for an instrument including all its details"""

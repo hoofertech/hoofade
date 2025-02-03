@@ -13,14 +13,8 @@ class PositionService:
         self.portfolio_formatter = PortfolioFormatter()
         self.last_portfolio_post = None
 
-    async def get_positions(self, source: TradeSource) -> List[Position]:
-        positions = []
-        async for position in source.get_positions():
-            positions.append(position)
-        return positions
-
     async def publish_portfolio(self, source: TradeSource):
-        positions = await self.get_positions(source)
+        positions = source.get_positions()
         timestamp = datetime.now(timezone.utc)
         message = self.portfolio_formatter.format_portfolio(positions, timestamp)
 

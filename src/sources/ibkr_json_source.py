@@ -45,10 +45,9 @@ class JsonSource(TradeSource):
             logger.error(f"Error connecting to JSON source: {e}")
             return False
 
-    async def get_positions(self) -> AsyncIterator[Position]:
+    def get_positions(self) -> List[Position]:
         """Get current positions"""
-        for pos in self.positions:
-            yield pos
+        return self.positions
 
     async def load_last_day_trades(self) -> bool:
         NUM_TRADERS_PER_ITERATION = 10

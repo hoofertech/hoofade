@@ -10,15 +10,6 @@ def position_service(mock_source, mock_sink):
     sinks = {"test": mock_sink}
     return PositionService(sources, sinks)
 
-
-@pytest.mark.asyncio
-async def test_get_positions(position_service, mock_source, sample_positions):
-    mock_source.positions = sample_positions
-    positions = await position_service.get_positions(mock_source)
-    assert len(positions) == len(sample_positions)
-    assert all(isinstance(p, Position) for p in positions)
-
-
 @pytest.mark.asyncio
 async def test_publish_portfolio(
     position_service, mock_source, mock_sink, sample_positions

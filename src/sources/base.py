@@ -14,7 +14,7 @@ class TradeSource(ABC):
         pass
 
     @abstractmethod
-    def get_positions(self) -> AsyncIterator[Position]:
+    def get_positions(self) -> List[Position]:
         """Get positions from the source"""
         pass
 

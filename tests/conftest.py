@@ -19,9 +19,8 @@ class MockTradeSource(TradeSource):
         self.trades = trades
         self.positions = []
 
-    async def get_positions(self) -> AsyncIterator[Position]:
-        for position in self.positions:
-            yield position
+    def get_positions(self) -> List[Position]:
+        return self.positions
 
     async def load_positions(self) -> bool:
         return True
