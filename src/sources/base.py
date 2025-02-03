@@ -9,7 +9,7 @@ class TradeSource(ABC):
         self.source_id = source_id
 
     @abstractmethod
-    async def connect(self) -> bool:
+    async def load_positions(self) -> bool:
         """Establish connection to the source"""
         pass
 
@@ -21,9 +21,4 @@ class TradeSource(ABC):
     @abstractmethod
     def get_last_day_trades(self) -> AsyncIterator[Trade]:
         """Get trades for the last day"""
-        pass
-
-    @abstractmethod
-    async def disconnect(self) -> None:
-        """Clean up any connections"""
         pass

@@ -14,15 +14,14 @@ def test_data_dir():
 @pytest.fixture
 async def json_source(test_data_dir):
     source = JsonSource(source_id="test-source", data_dir=str(test_data_dir))
-    await source.connect()
+    await source.load_positions()
     yield source
-    await source.disconnect()
 
 
 @pytest.mark.asyncio
-async def test_json_source_connect(test_data_dir):
+async def test_json_source_load_positions(test_data_dir):
     source = JsonSource(source_id="test-source", data_dir=str(test_data_dir))
-    assert await source.connect()
+    assert await source.load_positions()
 
 
 @pytest.mark.asyncio
@@ -70,9 +69,3 @@ async def test_json_source_negative_positions(json_source):
     assert amd_put.instrument.option_details.strike == Decimal("106")
     assert amd_put.instrument.option_details.option_type == OptionType.PUT
     assert amd_put.instrument.option_details.expiry == date(2025, 1, 31)
-
-
-@pytest.mark.asyncio
-async def test_json_source_disconnect(json_source):
-    await json_source.disconnect()
-    assert len(json_source.positions) == 0

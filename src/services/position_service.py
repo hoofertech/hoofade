@@ -30,8 +30,7 @@ class PositionService:
 
         self.last_portfolio_post = timestamp
 
-    def should_post_portfolio(self) -> bool:
-        now = datetime.now(timezone.utc)
+    def should_post_portfolio(self, now: datetime) -> bool:
         if self.last_portfolio_post is None:
             return True
         last_post_day = self.last_portfolio_post.date()

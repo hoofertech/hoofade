@@ -29,9 +29,8 @@ def trade_formatter():
 @pytest.fixture
 async def json_source(test_data_dir):
     source = JsonSource(source_id="test-source", data_dir=str(test_data_dir))
-    await source.connect()
+    await source.load_positions()
     yield source
-    await source.disconnect()
 
 
 @pytest.mark.asyncio

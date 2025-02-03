@@ -27,11 +27,8 @@ class MockTradeSource(TradeSource):
         for trade in self.trades:
             yield trade
 
-    async def connect(self) -> bool:
+    async def load_positions(self) -> bool:
         return True
-
-    async def disconnect(self) -> None:
-        pass
 
 
 class MockMessageSink(MessageSink):

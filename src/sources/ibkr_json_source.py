@@ -21,7 +21,7 @@ class JsonSource(TradeSource):
         self.positions: List[Position] = []
         self.parser = FlexReportParser()
 
-    async def connect(self) -> bool:
+    async def load_positions(self) -> bool:
         try:
             positions_data = self.parser.load_latest_portfolio(self.data_dir)
             if positions_data is None:
@@ -41,10 +41,6 @@ class JsonSource(TradeSource):
         except Exception as e:
             logger.error(f"Error connecting to JSON source: {e}")
             return False
-
-    async def disconnect(self) -> None:
-        """Clean up any connections"""
-        self.positions = []
 
     async def get_positions(self) -> AsyncIterator[Position]:
         """Get current positions"""

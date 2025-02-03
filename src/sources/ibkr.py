@@ -41,7 +41,7 @@ class IBKRSource(TradeSource):
         )
         self.positions = []
 
-    async def connect(self) -> bool:
+    async def load_positions(self) -> bool:
         try:
             # Test connection by fetching positions
             self.positions = [pos async for pos in self.flex_client.get_positions()]
@@ -77,7 +77,3 @@ class IBKRSource(TradeSource):
     def get_min_datetime_for_last_day(executions: List[Trade]) -> datetime:
         last_day_in_data = max(exec.timestamp for exec in executions)
         return last_day_in_data.replace(hour=0, minute=0, second=0, microsecond=0)
-
-    async def disconnect(self) -> None:
-        # No cleanup needed for Flex API
-        pass

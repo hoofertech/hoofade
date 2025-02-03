@@ -29,9 +29,12 @@ class TradeFormatter:
         for trade in trades:
             if isinstance(trade, ProfitTaker):
                 self.total_profit += trade.profit_amount
-                self.total_trades += 1
+                trade_count = int(
+                    (trade.buy_trade.quantity + trade.sell_trade.quantity) / 2
+                )
+                self.total_trades += trade_count
                 if trade.profit_percentage > 0:
-                    self.profitable_trades += 1
+                    self.profitable_trades += trade_count
             messages.append(self._format_trade(trade))
 
         # Add summary message if there were any profit/loss trades
@@ -54,7 +57,7 @@ class TradeFormatter:
 
         content = [
             f"{pl_emoji} Total {pl_text}: ${abs(self.total_profit):.2f}",
-            f"Win Rate: {win_rate:.1f}% ({self.profitable_trades}/{self.total_trades} trades)",
+            f"Win Rate: {win_rate:.1f}% ({self.profitable_trades}/{self.total_trades} closed trades)",
         ]
 
         return Message(

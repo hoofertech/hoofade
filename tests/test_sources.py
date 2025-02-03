@@ -216,7 +216,7 @@ def mock_flex_report_invalid_options(test_timestamp):
 
 
 @pytest.mark.asyncio
-async def test_ibkr_source_connect(mock_flex_report):
+async def test_ibkr_source_load_positions(mock_flex_report):
     source = IBKRSource(
         source_id="test-source",
         portfolio_token="test-token",
@@ -224,7 +224,7 @@ async def test_ibkr_source_connect(mock_flex_report):
         trades_token="test-token",
         trades_query_id="456",
     )
-    assert await source.connect()
+    assert await source.load_positions()
 
 
 @pytest.mark.asyncio
@@ -317,15 +317,3 @@ async def test_ibkr_source_invalid_option_data(
 
     trades = [trade async for trade in source.get_last_day_trades()]
     assert len(trades) == 0  # Invalid option trades should be skipped
-
-
-@pytest.mark.asyncio
-async def test_ibkr_source_disconnect(mock_flex_report):
-    source = IBKRSource(
-        source_id="test-source",
-        portfolio_token="test-token",
-        portfolio_query_id="123",
-        trades_token="test-token",
-        trades_query_id="456",
-    )
-    await source.disconnect()  # Should not raise any exceptions

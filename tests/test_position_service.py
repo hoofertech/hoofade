@@ -36,16 +36,14 @@ async def test_publish_portfolio(
     assert message.metadata["type"] == "portfolio"
 
 
-def test_should_post_portfolio(position_service):
+def test_should_post_portfolio(position_service, test_timestamp):
     # Should post if never posted
-    assert position_service.should_post_portfolio() is True
+    assert position_service.should_post_portfolio(test_timestamp) is True
 
     # Should not post if already posted today
-    position_service.last_portfolio_post = datetime.now(timezone.utc)
-    assert position_service.should_post_portfolio() is False
+    position_service.last_portfolio_post = test_timestamp + timedelta(hours=1)
+    assert position_service.should_post_portfolio(test_timestamp) is False
 
     # Should post if last post was yesterday
-    position_service.last_portfolio_post = datetime.now(timezone.utc) - timedelta(
-        days=1
-    )
-    assert position_service.should_post_portfolio() is True
+    position_service.last_portfolio_post = test_timestamp - timedelta(days=1)
+    assert position_service.should_post_portfolio(test_timestamp) is True

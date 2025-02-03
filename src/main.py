@@ -15,6 +15,7 @@ from sources.ibkr_json_source import JsonSource
 from sinks.cli import CLISink
 from services.position_service import PositionService
 from services.trade_service import TradeService
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -89,20 +90,16 @@ class TradePublisher:
         )
 
         while True:
+            now = datetime.now(timezone.utc)
             for source in self.sources.values():
-                try:
-                    if not await source.connect():
+                if self.position_service.should_post_portfolio(now):
+                    if not await source.load_positions():
                         logger.error(f"Failed to connect to source {source.source_id}")
                         continue
+                    await self.position_service.publish_portfolio(source)
 
-                    if self.position_service.should_post_portfolio():
-                        await self.position_service.publish_portfolio(source)
-
-                    new_trades = await self.trade_service.get_new_trades()
-                    await self.trade_service.publish_trades(new_trades)
-
-                finally:
-                    await source.disconnect()
+                new_trades = await self.trade_service.get_new_trades()
+                await self.trade_service.publish_trades(new_trades)
 
             if json_only_sources:
                 break
