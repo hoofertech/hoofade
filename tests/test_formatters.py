@@ -67,7 +67,7 @@ def call_option_trade(test_timestamp, call_option_instrument):
 
 
 def test_format_new_stock_trade(formatter, stock_trade):
-    message = formatter.format_trade(stock_trade)
+    message = formatter._format_trade(stock_trade)
 
     expected_content = "🚨 BUY  $AAPL 100@$150.25"
 
@@ -77,7 +77,7 @@ def test_format_new_stock_trade(formatter, stock_trade):
 
 
 def test_format_new_call_option_trade(formatter, call_option_trade):
-    message = formatter.format_trade(call_option_trade)
+    message = formatter._format_trade(call_option_trade)
 
     expected_content = "🚨 BUY  $AAPL 15JUN24 $150C 5@$3.50"
 

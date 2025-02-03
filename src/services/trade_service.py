@@ -55,13 +55,11 @@ class TradeService:
         positions = []
         if self.position_service:
             for source in self.sources.values():
-                logger.info(f"Getting positions from {source.source_id}")
                 positions.extend(await self.position_service.get_positions(source))
 
         # 3. Process trades through pipeline
         processor = TradeProcessor(positions)
         processed_results = processor.process_trades(all_trades)
-        logger.info(f"Processed results: {processed_results}")
 
         return processed_results
 
@@ -79,9 +77,8 @@ class TradeService:
             "",  # Empty line after header
         ]
 
-        for trade in trades:
-            message = self.formatter.format_trade(trade)
-            content.append(message.content)
+        for msg in self.formatter.format_trades(trades):
+            content.append(msg.content)
 
         # Create combined message
         combined_message = Message(

@@ -30,7 +30,7 @@ async def test_end_to_end_flow_with_option_trade(
     assert len(trades) == 1
 
     # Format trade
-    message = formatter.format_trade(trades[0])
+    message = formatter._format_trade(trades[0])
 
     # Publish to sink
     assert await mock_sink.publish(message)

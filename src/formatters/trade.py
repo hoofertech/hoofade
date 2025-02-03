@@ -1,16 +1,75 @@
 from typing import Union, List
-from datetime import timedelta
 from models.trade import Trade
 from models.message import Message
 from models.instrument import Instrument, InstrumentType, OptionType
 from services.trade_processor import CombinedTrade, ProfitTaker
 import logging
+from decimal import Decimal
+from datetime import datetime
+from services.trade_processor import ProcessingResult
+
 
 logger = logging.getLogger(__name__)
 
 
 class TradeFormatter:
-    def format_trade(self, trade: Union[Trade, CombinedTrade, ProfitTaker]) -> Message:
+    def __init__(self):
+        self.total_profit = Decimal("0")
+        self.total_trades = 0
+        self.profitable_trades = 0
+
+    def format_trades(self, trades: List[ProcessingResult]) -> List[Message]:
+        """Format a list of trades into messages"""
+        # Reset totals for new batch
+        self.total_profit = Decimal("0")
+        self.total_trades = 0
+        self.profitable_trades = 0
+
+        messages = []
+        for trade in trades:
+            if isinstance(trade, ProfitTaker):
+                self.total_profit += trade.profit_amount
+                self.total_trades += 1
+                if trade.profit_percentage > 0:
+                    self.profitable_trades += 1
+            messages.append(self._format_trade(trade))
+
+        # Add summary message if there were any profit/loss trades
+        if self.total_trades > 0:
+            messages.append(self._create_summary_message())
+
+        return messages
+
+    def _create_summary_message(self) -> Message:
+        """Create a summary message for all profit/loss trades"""
+        is_profit = self.total_profit > 0
+        pl_emoji = "📈" if is_profit else "📉"
+        pl_text = "PROFIT" if is_profit else "LOSS"
+
+        win_rate = (
+            (self.profitable_trades / self.total_trades * 100)
+            if self.total_trades > 0
+            else 0
+        )
+
+        content = [
+            f"{pl_emoji} Total {pl_text}: ${abs(self.total_profit):.2f}",
+            f"Win Rate: {win_rate:.1f}% ({self.profitable_trades}/{self.total_trades} trades)",
+        ]
+
+        return Message(
+            content="\n".join(content),
+            timestamp=datetime.now(),
+            metadata={
+                "type": "profit_summary",
+                "total_profit": self.total_profit,
+                "total_trades": self.total_trades,
+                "profitable_trades": self.profitable_trades,
+                "win_rate": win_rate,
+            },
+        )
+
+    def _format_trade(self, trade: Union[Trade, CombinedTrade, ProfitTaker]) -> Message:
         """Format a trade, combined trade, or profit taker into a message"""
         if isinstance(trade, ProfitTaker):
             return self._format_profit_taker(trade)
@@ -52,18 +111,18 @@ class TradeFormatter:
         )
 
         return Message(
-            content=content, timestamp=timestamp, metadata={"trade_id": trade_id}
+            content=content,
+            timestamp=timestamp,
+            metadata={"type": "trade", "trade_id": trade_id},
         )
 
     def _format_profit_taker(self, profit_taker: ProfitTaker) -> Message:
         """Format a profit taker with its component trades"""
         is_profit = profit_taker.profit_percentage > 0
         pl_sign = "+" if is_profit else ""
+        pl_amount_sign = "+" if is_profit else "-"
         pl_text = "PROFIT" if is_profit else "LOSS"
         pl_emoji = "📈" if is_profit else "📉"
-
-        hold_time = profit_taker.sell_trade.timestamp - profit_taker.buy_trade.timestamp
-        hold_time_str = self._format_hold_time(hold_time)
 
         # Get currency from first trade
         first_trade = profit_taker.buy_trade.trades[0]
@@ -85,17 +144,19 @@ class TradeFormatter:
 
         # Main profit/loss line
         content = [
-            f"{pl_emoji} {pl_text} {hold_time_str}",
-            f"{symbol_text:<{symbol_width}} "
-            f"{int(quantity):>{quantity_width}} @ "
+            f"{pl_emoji} {pl_text} {symbol_text:<{symbol_width}} "
+            f"{int(quantity):>{quantity_width}}@"
             f"{currency_symbol}{profit_taker.sell_trade.weighted_price:>{price_width}.2f} "
             f"-> {pl_sign}{profit_taker.profit_percentage:>{pl_width}.2f}% "
-            f"({currency_symbol}{abs(profit_taker.profit_amount):.2f})",
+            f"({pl_amount_sign}{currency_symbol}{abs(profit_taker.profit_amount):.2f})",
         ]
 
         # Add component trades indented
-        content.extend(self._format_component_trades(profit_taker.buy_trade, "BUY"))
-        content.extend(self._format_component_trades(profit_taker.sell_trade, "SELL"))
+        content.extend(
+            self._format_component_trades(
+                profit_taker.buy_trade, profit_taker.sell_trade
+            )
+        )
 
         return Message(
             content="\n".join(content),
@@ -109,29 +170,64 @@ class TradeFormatter:
         )
 
     def _format_component_trades(
-        self, combined_trade: CombinedTrade, side: str
+        self, buy_trade: CombinedTrade, sell_trade: CombinedTrade
     ) -> List[str]:
-        """Format individual trades that make up a combined trade"""
+        """Format individual trades that make up buy and sell trades in chronological order"""
         lines = []
-        currency = combined_trade.trades[0].currency if combined_trade.trades else "USD"
+        currency = (
+            buy_trade.trades[0].currency
+            if buy_trade.trades
+            else sell_trade.trades[0].currency
+            if sell_trade.trades
+            else "USD"
+        )
         currency_symbol = self._get_currency_symbol(currency)
 
-        # If it's a position (no trades), format as single line
-        if not combined_trade.trades:
-            lines.append(
-                f"    └─ {side:<4} {int(combined_trade.quantity)} @ "
-                f"{currency_symbol}{combined_trade.weighted_price:.2f} (from position)"
-            )
-            return lines
+        # Combine all trades and sort by timestamp
+        all_trades = []
 
-        # Format each component trade
-        for i, trade in enumerate(combined_trade.trades):
-            prefix = "    └─ " if i == len(combined_trade.trades) - 1 else "    ├─ "
-            lines.append(
-                f"{prefix}{side:<4} {int(abs(trade.quantity))} @ "
-                f"{currency_symbol}{trade.price:.2f} "
-                f"({trade.timestamp.strftime('%H:%M:%S')})"
+        # Handle buy position
+        if not buy_trade.trades:
+            all_trades.append(
+                ("BUY", None, buy_trade.quantity, buy_trade.weighted_price, True)
             )
+        else:
+            for trade in buy_trade.trades:
+                all_trades.append(
+                    ("BUY", trade.timestamp, abs(trade.quantity), trade.price, False)
+                )
+
+        # Handle sell position
+        if not sell_trade.trades:
+            all_trades.append(
+                ("SELL", None, sell_trade.quantity, sell_trade.weighted_price, True)
+            )
+        else:
+            for trade in sell_trade.trades:
+                all_trades.append(
+                    ("SELL", trade.timestamp, abs(trade.quantity), trade.price, False)
+                )
+
+        # Sort trades - positions (from_position=True) first, then by timestamp
+        all_trades.sort(key=lambda x: (not x[4], x[1] or datetime.min))
+
+        # Format each trade
+        for i, (side, timestamp, quantity, price, from_position) in enumerate(
+            all_trades
+        ):
+            prefix = "    └─ " if i == len(all_trades) - 1 else "    ├─ "
+
+            if from_position:
+                lines.append(
+                    f"{prefix}{side:<4} {int(quantity)} @ "
+                    f"{currency_symbol}{price:.2f} (from position)"
+                )
+            else:
+                lines.append(
+                    f"{prefix}{side:<4} {int(quantity)} @ "
+                    f"{currency_symbol}{price:.2f} "
+                    f"({timestamp.strftime('%H:%M:%S')})"
+                )
 
         return lines
 
@@ -148,22 +244,6 @@ class TradeFormatter:
             )
             return f"${instrument.symbol:<{max_symbol}} {expiry} {currency_symbol}{strike}{option_type}"
         return f"${instrument.symbol:<{max_symbol}}"
-
-    def _format_hold_time(self, hold_time: timedelta) -> str:
-        """Format hold time duration in a human-readable format"""
-        days = hold_time.days
-        hours = hold_time.seconds // 3600
-        minutes = (hold_time.seconds % 3600) // 60
-
-        parts = []
-        if days > 0:
-            parts.append(f"{days}d")
-        if hours > 0:
-            parts.append(f"{hours}h")
-        if minutes > 0:
-            parts.append(f"{minutes}m")
-
-        return " ".join(parts) if parts else "0m"
 
     def _get_currency_symbol(self, currency: str) -> str:
         """Get currency symbol for given currency code"""

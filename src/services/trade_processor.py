@@ -37,13 +37,17 @@ class ProfitTaker:
         """Calculate the latest timestamp between buy and sell trades."""
         return max(self.buy_trade.timestamp, self.sell_trade.timestamp)
 
+    @property
+    def instrument(self) -> Instrument:
+        """Get the instrument from the buy or sell trade"""
+        return self.buy_trade.instrument
+
 
 ProcessingResult = Union[Trade, CombinedTrade, ProfitTaker]
 
 
 class TradeProcessor:
     def __init__(self, portfolio: List[Position]):
-        logger.info(f"Full portfolio: {portfolio}")
         """Initialize with current portfolio positions"""
         self.portfolio = {
             self._get_instrument_key_from_instrument(position.instrument): position
@@ -67,7 +71,6 @@ class TradeProcessor:
             combined_trades
         )
         results.extend(profit_takers)
-        logger.info(f"Remaining after profit: {profit_takers}")
 
         # 4. Match remaining trades with portfolio positions
         portfolio_matches, remaining_after_portfolio = self._match_with_portfolio(
@@ -75,10 +78,19 @@ class TradeProcessor:
         )
         results.extend(portfolio_matches)
 
-        logger.info(f"Remaining after portfolio: {portfolio_matches}")
+        # Sort results by symbol and then timestamp
+        results.sort(key=lambda x: (x.instrument.symbol, x.timestamp))
+
+        # Sort remaining_after_portfolio by symbol and then timestamp
+        remaining_sorted = sorted(
+            [(symbol, trades) for symbol, trades in remaining_after_portfolio.items()],
+            key=lambda x: x[0],
+            reverse=True,
+        )
+
         # 5. Add any remaining unmatched trades
-        for rem_trade in remaining_after_portfolio.values():
-            results.extend(rem_trade)
+        for _, rem_trade in remaining_sorted:
+            results = rem_trade + results
 
         return results
 

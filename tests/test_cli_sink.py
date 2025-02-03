@@ -53,7 +53,7 @@ async def test_cli_sink_stock_trade(cli_sink, json_source, trade_formatter, caps
     )
 
     # Format trade using formatter
-    message = trade_formatter.format_trade(trade)
+    message = trade_formatter._format_trade(trade)
 
     # Publish to CLI sink
     await cli_sink.publish(message)
@@ -90,7 +90,7 @@ async def test_cli_sink_option_trade(cli_sink, json_source, trade_formatter, cap
     )
 
     # Format trade using formatter
-    message = trade_formatter.format_trade(trade)
+    message = trade_formatter._format_trade(trade)
 
     # Publish to CLI sink
     await cli_sink.publish(message)
@@ -130,7 +130,7 @@ async def test_cli_sink_real_trades(cli_sink, json_source, trade_formatter, caps
     )
 
     # Format and publish opening trade
-    message = trade_formatter.format_trade(opening_trade)
+    message = trade_formatter._format_trade(opening_trade)
     await cli_sink.publish(message)
 
     # Check output
