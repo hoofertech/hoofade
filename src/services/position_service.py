@@ -1,6 +1,5 @@
-from typing import List, Dict
+from typing import Dict
 from datetime import datetime, timezone
-from models.position import Position
 from sources.base import TradeSource
 from formatters.portfolio import PortfolioFormatter
 from sinks.base import MessageSink

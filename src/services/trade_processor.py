@@ -41,11 +41,12 @@ class ProfitTaker:
     def instrument(self) -> Instrument:
         """Get the instrument from the buy or sell trade"""
         return self.buy_trade.instrument
-    
+
     @property
     def currency(self) -> str:
         """Get the currency from the buy or sell trade"""
         return self.buy_trade.currency
+
 
 ProcessingResult = Union[Trade, CombinedTrade, ProfitTaker]
 
@@ -58,9 +59,11 @@ class TradeProcessor:
             for position in portfolio
         }
 
-    def process_trades(self, trades: List[Trade]) -> Tuple[List[ProcessingResult], Dict[str, List[CombinedTrade]]]:
+    def process_trades(
+        self, trades: List[Trade]
+    ) -> Tuple[List[ProcessingResult], List[ProfitTaker]]:
         if not trades:
-            return []
+            return [], []
 
         results: list[ProcessingResult] = []
 

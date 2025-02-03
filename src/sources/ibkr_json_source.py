@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import AsyncIterator, List
+from typing import List
 from pathlib import Path
 import logging
 from models.trade import Trade
@@ -54,27 +54,33 @@ class JsonSource(TradeSource):
         try:
             trades_data = self.parser.load_latest_trades(self.data_dir)
             if trades_data is None:
-                return
+                return True
 
             parsed_trades = self.parser.parse_executions_from_dict(
                 trades_data, self.source_id
             )
             if not parsed_trades:
-                return
+                return True
             since = self.get_min_datetime_for_last_day(parsed_trades)
             self.last_day_trades = [
                 trade for trade in parsed_trades if trade.timestamp >= since
             ]
             if self.iter * NUM_TRADERS_PER_ITERATION < len(parsed_trades):
                 start_index = self.iter * NUM_TRADERS_PER_ITERATION
-                end_index = min(start_index + NUM_TRADERS_PER_ITERATION, len(parsed_trades))
+                end_index = min(
+                    start_index + NUM_TRADERS_PER_ITERATION, len(parsed_trades)
+                )
                 self.last_day_trades = [
-                    trade for trade in parsed_trades[start_index:end_index] if trade.timestamp >= since
+                    trade
+                    for trade in parsed_trades[start_index:end_index]
+                    if trade.timestamp >= since
                 ]
             else:
                 self.last_day_trades = []
                 self.json_done = True
-            logger.info(f"Loaded {len(self.last_day_trades)} trades for {self.source_id}")
+            logger.info(
+                f"Loaded {len(self.last_day_trades)} trades for {self.source_id}"
+            )
             self.iter += 1
             return True
         except Exception as e:

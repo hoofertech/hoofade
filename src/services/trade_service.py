@@ -63,7 +63,7 @@ class TradeService:
         if self.position_service:
             for source in self.sources.values():
                 positions.extend(source.get_positions())
-                
+
         # 3. Process trades through pipeline
         processor = TradeProcessor(positions)
         processed_results, portfolio_matches = processor.process_trades(all_trades)
@@ -78,31 +78,39 @@ class TradeService:
                         match_applied = True
                         logger.info(f"Applied portfolio match to source {source_id}")
                         break
-                
+
                 if not match_applied:
-                    logger.warning(f"Could not find matching position for portfolio match")
+                    logger.warning(
+                        "Could not find matching position for portfolio match"
+                    )
 
         return processed_results
 
-    def _apply_portfolio_match(self, match: ProfitTaker, positions: List[Position]) -> bool:
+    def _apply_portfolio_match(
+        self, match: ProfitTaker, positions: List[Position]
+    ) -> bool:
         """
         Apply a portfolio match to a list of positions.
         Returns True if match was successfully applied.
-        
+
         Args:
             match: ProfitTaker containing the buy and sell trades
             positions: List of positions to search for matches
-        
+
         Returns:
             bool: True if match was successfully applied to a position
         """
         # Determine which side is from position (has no trades)
         if not match.buy_trade.trades:
             position_trade = match.buy_trade
-            logger.debug(f"Buy side is from position: {position_trade.instrument.symbol}")
+            logger.debug(
+                f"Buy side is from position: {position_trade.instrument.symbol}"
+            )
         elif not match.sell_trade.trades:
             position_trade = match.sell_trade
-            logger.debug(f"Sell side is from position: {position_trade.instrument.symbol}")
+            logger.debug(
+                f"Sell side is from position: {position_trade.instrument.symbol}"
+            )
         else:
             logger.debug("No position trades found in profit taker")
             return False
@@ -118,7 +126,7 @@ class TradeService:
                     f"to {position.quantity}"
                 )
                 return True
-        
+
         return False
 
     async def publish_trades(self, trades: List[ProcessingResult]) -> None:

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import AsyncIterator, List
+from typing import List
 from models.trade import Trade
 from models.position import Position
 

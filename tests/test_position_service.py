@@ -1,7 +1,6 @@
 import pytest
 from datetime import datetime, timezone, timedelta
 from services.position_service import PositionService
-from models.position import Position
 
 
 @pytest.fixture
@@ -9,6 +8,7 @@ def position_service(mock_source, mock_sink):
     sources = {"test": mock_source}
     sinks = {"test": mock_sink}
     return PositionService(sources, sinks)
+
 
 @pytest.mark.asyncio
 async def test_publish_portfolio(

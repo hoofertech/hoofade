@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import AsyncIterator
 import logging
 from models.trade import Trade
 from sources.base import TradeSource
@@ -41,6 +40,7 @@ class IBKRSource(TradeSource):
         )
         self.positions: List[Position] = []
         self.last_day_trades: List[Trade] = []
+
     async def load_positions(self) -> bool:
         try:
             # Test connection by fetching positions
@@ -60,7 +60,7 @@ class IBKRSource(TradeSource):
                 exec async for exec in self.flex_client.get_trades(self.source_id)
             ]
             if not executions:
-                return
+                return True
             since = self.get_min_datetime_for_last_day(executions)
             self.last_day_trades = [
                 exec for exec in executions if exec.timestamp >= since
@@ -72,7 +72,7 @@ class IBKRSource(TradeSource):
 
     def get_last_day_trades(self) -> List[Trade]:
         return self.last_day_trades
-    
+
     @staticmethod
     def get_min_datetime_for_last_day(executions: List[Trade]) -> datetime:
         last_day_in_data = max(exec.timestamp for exec in executions)
