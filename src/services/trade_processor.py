@@ -161,13 +161,54 @@ class TradeProcessor:
             side=side,
         )
 
+    def _calculate_profit_taker(
+        self,
+        buy_trade: CombinedTrade,
+        sell_trade: CombinedTrade,
+        matched_quantity: Decimal,
+    ) -> ProfitTaker:
+        """Calculate profit/loss for a pair of matched trades"""
+        # Determine which trade came first chronologically
+        first_trade = (
+            buy_trade if buy_trade.timestamp < sell_trade.timestamp else sell_trade
+        )
+        second_trade = (
+            sell_trade if buy_trade.timestamp < sell_trade.timestamp else buy_trade
+        )
+
+        # Calculate profit based on chronological order
+        price_diff = second_trade.weighted_price - first_trade.weighted_price
+
+        # Multiply by 100 for options
+        contract_multiplier = (
+            Decimal("100")
+            if first_trade.instrument.type == InstrumentType.OPTION
+            else Decimal("1")
+        )
+        profit_amount = price_diff * matched_quantity * contract_multiplier
+
+        profit_percentage = (
+            (second_trade.weighted_price - first_trade.weighted_price)
+            / first_trade.weighted_price
+            * Decimal("100")
+        )
+
+        # If the sell came first, it's a short trade, so invert the profit
+        if first_trade.side == "SELL":
+            profit_amount = -profit_amount
+            profit_percentage = -profit_percentage
+
+        return ProfitTaker(
+            buy_trade=buy_trade,
+            sell_trade=sell_trade,
+            profit_amount=profit_amount,
+            profit_percentage=profit_percentage,
+        )
+
     def _generate_profit_takers(
         self, combined_trades: Dict[str, List[CombinedTrade]]
     ) -> Tuple[List[ProfitTaker], Dict[str, List[CombinedTrade]]]:
-        """
-        Generate profit takers for opposing trades and handle remaining quantities
-        Returns both profit takers and updated combined trades dict
-        """
+        """Generate profit takers for opposing trades and handle remaining quantities"""
         profit_takers = []
         updated_trades = {}
 
@@ -186,47 +227,9 @@ class TradeProcessor:
             matched_buy = self._create_partial_combined_trade(buy, matched_quantity)
             matched_sell = self._create_partial_combined_trade(sell, matched_quantity)
 
-            # Determine which trade came first
-            first_trade = (
-                matched_buy
-                if matched_buy.timestamp < matched_sell.timestamp
-                else matched_sell
-            )
-            second_trade = (
-                matched_sell
-                if matched_buy.timestamp < matched_sell.timestamp
-                else matched_buy
-            )
-
-            # Calculate profit based on chronological order
-            price_diff = second_trade.weighted_price - first_trade.weighted_price
-
-            # Multiply by 100 for options
-            contract_multiplier = (
-                Decimal("100")
-                if first_trade.instrument.type == InstrumentType.OPTION
-                else Decimal("1")
-            )
-
-            profit_amount = price_diff * matched_quantity * contract_multiplier
-
-            profit_percentage = (
-                (second_trade.weighted_price - first_trade.weighted_price)
-                / first_trade.weighted_price
-                * Decimal("100")
-            )
-
-            # If the sell came first, it's a short trade, so invert the profit
-            if first_trade.side == "SELL":
-                profit_amount = -profit_amount
-                profit_percentage = -profit_percentage
-
             profit_takers.append(
-                ProfitTaker(
-                    buy_trade=matched_buy,
-                    sell_trade=matched_sell,
-                    profit_amount=profit_amount,
-                    profit_percentage=profit_percentage,
+                self._calculate_profit_taker(
+                    matched_buy, matched_sell, matched_quantity
                 )
             )
 
@@ -293,16 +296,12 @@ class TradeProcessor:
     def _match_with_portfolio(
         self, combined_trades: Dict[str, List[CombinedTrade]]
     ) -> Tuple[List[ProfitTaker], Dict[str, List[CombinedTrade]]]:
-        """
-        Match trades with existing portfolio positions
-        Returns both profit takers and remaining unmatched trades
-        """
+        """Match trades with existing portfolio positions"""
         portfolio_matches = []
         remaining_trades = {}
 
         for instrument_key, trades in combined_trades.items():
             position = self.portfolio.get(instrument_key)
-            logger.info(f"Position: {position}")
             if not position:
                 remaining_trades[instrument_key] = trades
                 continue
@@ -324,7 +323,7 @@ class TradeProcessor:
                         trades=[],  # No actual trades since this is from position
                         timestamp=trade.timestamp,
                         side="SELL" if position.is_short else "BUY",
-                        currency=trade.currency,  # Use same currency as matching trade
+                        currency=trade.currency,
                     )
 
                     # Create partial trade for matched portion
@@ -332,44 +331,15 @@ class TradeProcessor:
                         trade, matched_quantity
                     )
 
-                    # Determine which came first chronologically
-                    first_trade = position_trade
-                    second_trade = matched_trade
-
-                    # Calculate profit based on chronological order
-                    price_diff = (
-                        second_trade.weighted_price - first_trade.weighted_price
-                    )
-
-                    # Multiply by 100 for options
-                    contract_multiplier = (
-                        Decimal("100")
-                        if position.instrument.type == InstrumentType.OPTION
-                        else Decimal("1")
-                    )
-                    profit_amount = price_diff * matched_quantity * contract_multiplier
-
-                    profit_percentage = (
-                        (second_trade.weighted_price - first_trade.weighted_price)
-                        / first_trade.weighted_price
-                        * Decimal("100")
-                    )
-
-                    # If the sell came first, it's a short trade, so invert the profit
-                    if first_trade.side == "SELL":
-                        profit_amount = -profit_amount
-                        profit_percentage = -profit_percentage
-
                     portfolio_matches.append(
-                        ProfitTaker(
+                        self._calculate_profit_taker(
                             buy_trade=position_trade
                             if not position.is_short
                             else matched_trade,
                             sell_trade=matched_trade
                             if trade.side == "SELL"
                             else position_trade,
-                            profit_amount=profit_amount,
-                            profit_percentage=profit_percentage,
+                            matched_quantity=matched_quantity,
                         )
                     )
 
