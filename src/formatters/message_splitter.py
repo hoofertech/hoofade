@@ -6,11 +6,11 @@ class MessageSplitter:
     MAX_TWEET_LENGTH = 280
     THREAD_MARKER = " 🧵"
     CONTINUATION_MARKER = "..."
-    REPO_LINK = "\n\n🚀 Build yours: github.com/hoofertech/xtrades"
+    REPO_LINK = "\n\n🚀 Build yours: github.com/hoofertech/hoofade"
     # Alternative options:
-    # REPO_LINK = "\n\n🤖 Get your own bot: github.com/hoofertech/xtrades"
-    # REPO_LINK = "\n\n⚡️ Clone me: github.com/hoofertech/xtrades"
-    # REPO_LINK = "\n\n🔧 DIY: github.com/hoofertech/xtrades"
+    # REPO_LINK = "\n\n🤖 Get your own bot: github.com/hoofertech/hoofade"
+    # REPO_LINK = "\n\n⚡️ Clone me: github.com/hoofertech/hoofade"
+    # REPO_LINK = "\n\n🔧 DIY: github.com/hoofertech/hoofade"
 
     @staticmethod
     def split_to_tweets(message: Message) -> List[Message]:

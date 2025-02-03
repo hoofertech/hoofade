@@ -1,4 +1,4 @@
-<FlexQueryResponse queryName="xtrades-recent" type="TCF">
+<FlexQueryResponse queryName="hoofade-recent" type="TCF">
 <FlexStatements count="4">
 <FlexStatement accountId="U10900000" fromDate="20250129" toDate="20250129" period="Today" whenGenerated="20250129;183807">
 <TradeConfirms>

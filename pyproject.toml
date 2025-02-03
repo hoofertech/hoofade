@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "xtrades"
+name = "hoofade"
 version = "0.1.0"
 description = "A Python daemon that monitors IBKR trades and posts updates to X"
 authors = ["Mohammad Dashti <mdashti@gmail.com>"]

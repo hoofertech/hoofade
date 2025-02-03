@@ -18,7 +18,7 @@ def test_short_message_no_split():
     assert len(tweets) == 1
     assert (
         tweets[0].content
-        == message.content + "\n\n🚀 Build yours: github.com/hoofertech/xtrades"
+        == message.content + "\n\n🚀 Build yours: github.com/hoofertech/hoofade"
     )
     assert "🧵" not in tweets[0].content
 

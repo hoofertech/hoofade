@@ -1,4 +1,4 @@
-<FlexQueryResponse queryName="xtrades-positions" type="AF">
+<FlexQueryResponse queryName="hoofade-positions" type="AF">
 <FlexStatements count="3">
 <FlexStatement accountId="U10900000" fromDate="20250128" toDate="20250128" period="LastBusinessDay" whenGenerated="20250129;183803">
 <OpenPositions>
