@@ -9,7 +9,7 @@ from sources.ibkr import IBKRSource
 from sinks.twitter import TwitterSink
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.asyncio import async_sessionmaker
-from config import get_source_configs, get_sink_configs, get_db_url
+from config import get_source_configs, get_sink_configs, get_db_url, get_web_config
 from sources.base import TradeSource
 from sinks.base import MessageSink
 from dotenv import load_dotenv
@@ -148,8 +148,15 @@ async def create_db_maker() -> async_sessionmaker[AsyncSession]:
 
 
 async def run_web_server():
-    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
+    web_config = get_web_config()
+    config = uvicorn.Config(
+        app,
+        host=web_config["host"],
+        port=web_config["port"],
+        log_level=web_config["log_level"],
+    )
     server = uvicorn.Server(config)
+    logger.info(f"Starting web server on {web_config['host']}:{web_config['port']}")
     await server.serve()
 
 

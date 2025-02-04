@@ -88,3 +88,12 @@ def get_sink_configs() -> Dict[str, Dict[str, Any]]:
 def get_db_url() -> str:
     """Get database URL from environment"""
     return os.getenv("DATABASE_URL", "sqlite+aiosqlite:///trades.db")
+
+
+def get_web_config() -> Dict[str, Any]:
+    """Get web server configuration"""
+    return {
+        "host": os.getenv("WEB_HOST", "0.0.0.0"),
+        "port": int(os.getenv("WEB_PORT", "8000")),
+        "log_level": os.getenv("WEB_LOG_LEVEL", "info"),
+    }
