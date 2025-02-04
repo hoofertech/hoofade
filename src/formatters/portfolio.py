@@ -53,7 +53,7 @@ class PortfolioFormatter:
             # Calculate max widths for each column
             max_symbol = max(len(p.instrument.symbol) for p in stock_positions)
             max_quantity = max(len(str(abs(int(p.quantity)))) for p in stock_positions)
-            max_price = max(len(f"{p.market_price:.2f}") for p in stock_positions)
+            max_price = max(len(f"{p.cost_basis:.2f}") for p in stock_positions)
 
             content.append("📊 Stocks:")
             for pos in stock_positions:
@@ -69,7 +69,7 @@ class PortfolioFormatter:
                 content.append(
                     f"${pos.instrument.symbol:<{max_symbol}} "
                     f"{sign}{int(abs(pos.quantity)):>{max_quantity}}"
-                    f"@{currency_symbol}{pos.market_price:<{max_price}.2f}"
+                    f"@{currency_symbol}{pos.cost_basis:<{max_price}.2f}"
                 )
 
         # Format option positions with alignment
@@ -85,7 +85,7 @@ class PortfolioFormatter:
                 if p.instrument.option_details
             )
             max_quantity = max(len(str(abs(int(p.quantity)))) for p in option_positions)
-            max_price = max(len(f"{p.market_price:.2f}") for p in option_positions)
+            max_price = max(len(f"{p.cost_basis:.2f}") for p in option_positions)
 
             content.append("🎯 Options:")
             for pos in option_positions:
@@ -110,7 +110,7 @@ class PortfolioFormatter:
                     f"{expiry} "
                     f"{currency_symbol}{strike:<{max_strike}}{option_type} "
                     f"{sign}{int(abs(pos.quantity)):>{max_quantity}}"
-                    f"@{currency_symbol}{pos.market_price:<{max_price}.2f}"
+                    f"@{currency_symbol}{pos.cost_basis:<{max_price}.2f}"
                 )
 
         return Message(
