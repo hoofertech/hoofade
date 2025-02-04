@@ -93,6 +93,7 @@ class TradePublisher:
 
     async def run(self):
         """Main loop to process trades periodically"""
+        first_run = True
         while True:
             now = datetime.now(timezone.utc)
             all_sources_done = False
@@ -110,6 +111,12 @@ class TradePublisher:
                         continue
                     await self.position_service.publish_portfolio(source, now)
                 else:
+                    if first_run:
+                        if not await source.load_positions():
+                            logger.error(
+                                f"Failed to connect to source {source.source_id}"
+                            )
+                            continue
                     logger.info(f"Skipping portfolio for source {source.source_id}")
 
                 # Process trades
@@ -125,6 +132,7 @@ class TradePublisher:
 
             if all_sources_done:
                 break
+            first_run = False
             await asyncio.sleep(max_sleep)
 
 
