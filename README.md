@@ -98,6 +98,36 @@ A Python daemon that monitors IBKR trades using Flex Reports and automatically p
    - Click "Create" to generate a new token
    - Save this token securely
 
+### X (Twitter) API Setup
+1. Go to the [X Developer Portal](https://developer.x.com)
+2. Sign in with your X account
+3. Create a new Project/App:
+   - Click "Create Project"
+   - Name your project
+   - Select "Production" access
+   - In "User authentication setup":
+     - Enable OAuth 1.0a
+     - Type of App: select "Web App, Automated App or Bot"
+     - App permissions: select "Read and Write"
+     - Callback URI / Website URL: can be left blank for bot usage
+4. Get your API Keys:
+   - From your app's dashboard, go to "Keys and tokens"
+   - Save these credentials:
+     - API Key (Consumer Key)
+     - API Key Secret (Consumer Secret)
+     - Access Token
+     - Access Token Secret
+5. Add to your .env file:
+   ```plaintext
+   TWITTER_API_KEY=your_api_key
+   TWITTER_API_SECRET=your_api_secret
+   TWITTER_BEARER_TOKEN=your_bearer_token
+   TWITTER_ACCESS_TOKEN=your_access_token
+   TWITTER_ACCESS_TOKEN_SECRET=your_access_token_secret
+   ```
+
+Note: If you change app permissions after generating tokens, you'll need to regenerate your Access Token and Secret.
+
 ## Environment Setup
 
 1. Clone the repository
