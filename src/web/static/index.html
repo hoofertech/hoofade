@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trade Messages</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <h1>Trade Messages</h1>
+      <div class="filter-container">
+        <select id="messageType">
+          <option value="all">All Messages</option>
+          <option value="trade">Trades</option>
+          <option value="portfolio">Portfolio</option>
+        </select>
+      </div>
+    </header>
+    <main>
+      <div id="messages" class="messages-container">
+        <!-- Messages will be inserted here -->
+      </div>
+      <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+      </div>
+    </main>
+  </div>
+  <script src="/static/js/app.js"></script>
+</body>
+
+</html>

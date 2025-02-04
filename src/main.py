@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import uvicorn
+import threading
 from formatters.trade import TradeFormatter
 from typing import Dict
 from models.db_trade import Base
@@ -16,6 +18,8 @@ from sinks.cli import CLISink
 from services.position_service import PositionService
 from services.trade_service import TradeService
 from datetime import datetime, timezone
+from sinks.database import DatabaseSink
+from web.server import app, init_app
 
 logger = logging.getLogger(__name__)
 
@@ -46,14 +50,15 @@ def create_sources() -> Dict[str, TradeSource]:
     return sources
 
 
-def create_sinks() -> Dict[str, MessageSink]:
+def create_sinks(
+    async_session: async_sessionmaker[AsyncSession],
+) -> Dict[str, MessageSink]:
     """Create message sinks from configuration"""
     sinks = {}
     configs = get_sink_configs()
 
     for sink_id, config in configs.items():
         if config["type"] == "twitter":
-            logger.info(f"Creating Twitter sink {sink_id}")
             sinks[sink_id] = TwitterSink(
                 sink_id=config["sink_id"],
                 bearer_token=config["bearer_token"],
@@ -63,8 +68,11 @@ def create_sinks() -> Dict[str, MessageSink]:
                 access_token_secret=config["access_token_secret"],
             )
         elif config["type"] == "cli":
-            logger.info(f"Creating CLI sink {sink_id}")
             sinks[sink_id] = CLISink(sink_id=config["sink_id"])
+        elif config["type"] == "database":
+            sinks[sink_id] = DatabaseSink(
+                sink_id=config["sink_id"], async_session=async_session
+            )
 
     return sinks
 
@@ -120,7 +128,7 @@ class TradePublisher:
             await asyncio.sleep(max_sleep)
 
 
-async def create_db() -> AsyncSession:
+async def create_db_maker() -> async_sessionmaker[AsyncSession]:
     logger.info("Creating database session: %s", get_db_url())
     """Create database session"""
     engine = create_async_engine(get_db_url())
@@ -136,22 +144,55 @@ async def create_db() -> AsyncSession:
     )
 
     # Create and return a new session
-    return async_session()
+    return async_session
+
+
+async def run_web_server():
+    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
+
+
+async def run_trade_publisher(sources, sinks, db, formatter):
+    try:
+        publisher = TradePublisher(sources, sinks, db, formatter)
+        await publisher.run()
+    finally:
+        await db.close()
+
+
+def start_web_server(db_maker):
+    init_app(db_maker)
+    asyncio.run(run_web_server())
 
 
 async def main():
-    # Setup logging
     logging.basicConfig(level=logging.INFO)
 
-    # Load configuration and create components
     sources = create_sources()
-    sinks = create_sinks()
-    db = await create_db()  # Add await here
+    db_maker = await create_db_maker()
+    sinks = create_sinks(db_maker)
     formatter = TradeFormatter()
+    db = db_maker()
 
-    # Create and run publisher
-    publisher = TradePublisher(sources, sinks, db, formatter)
-    await publisher.run()
+    # Start web server in a separate thread
+    web_thread = threading.Thread(
+        target=start_web_server, args=(db_maker,), daemon=True
+    )
+    web_thread.start()
+
+    # Run trade publisher in main thread
+    await run_trade_publisher(sources, sinks, db, formatter)
+
+    # Keep the program running
+    try:
+        while True:
+            await asyncio.sleep(3600)  # Sleep for an hour
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
+    finally:
+        # Cleanup code here if needed
+        await db.close()
 
 
 if __name__ == "__main__":

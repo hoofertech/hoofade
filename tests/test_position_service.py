@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 from services.position_service import PositionService
 
 
@@ -26,17 +26,31 @@ async def test_publish_portfolio(
     assert lines[0] == f"Portfolio on {expected_date}"
     assert message.metadata["type"] == "portfolio"
 
+
 @pytest.mark.asyncio
 async def test_should_post_portfolio(position_service, mock_source, test_timestamp):
     # Should post if never posted
-    assert await position_service.should_post_portfolio(mock_source.source_id, test_timestamp) is True
+    assert (
+        await position_service.should_post_portfolio(
+            mock_source.source_id, test_timestamp
+        )
+        is True
+    )
     await position_service.publish_portfolio(mock_source, test_timestamp)
-    
+
     # Should not post if already posted today
     an_hour_later = test_timestamp + timedelta(hours=1)
-    assert await position_service.should_post_portfolio(mock_source.source_id, an_hour_later) is False
+    assert (
+        await position_service.should_post_portfolio(
+            mock_source.source_id, an_hour_later
+        )
+        is False
+    )
     await position_service.publish_portfolio(mock_source, an_hour_later)
 
     # Should post if a day has passed
     tomorrow = test_timestamp + timedelta(days=1)
-    assert await position_service.should_post_portfolio(mock_source.source_id, tomorrow) is True
+    assert (
+        await position_service.should_post_portfolio(mock_source.source_id, tomorrow)
+        is True
+    )

@@ -76,6 +76,12 @@ def get_sink_configs() -> Dict[str, Dict[str, Any]]:
             "sink_id": "cli-output",
         }
 
+    # Add Database sink
+    sinks["database"] = {
+        "type": "database",
+        "sink_id": "db-store",
+    }
+
     return sinks
 
 
