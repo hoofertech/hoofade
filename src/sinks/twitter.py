@@ -27,15 +27,23 @@ class TwitterSink(MessageSink):
             access_token=access_token,
             access_token_secret=access_token_secret,
         )
-        self.last_publish = datetime.fromtimestamp(0, tz=timezone.utc)
+        self.last_portfolio_publish = datetime.fromtimestamp(0, tz=timezone.utc)
+        self.last_trade_publish = datetime.fromtimestamp(0, tz=timezone.utc)
 
-    def can_publish(self) -> bool:
+    def can_publish(self, message_type: str | None = None) -> bool:
         now = datetime.now(timezone.utc)
-        return (now - self.last_publish).total_seconds() >= 1800  # 30 minutes
+        if message_type == "portfolio":
+            return (
+                now - self.last_portfolio_publish
+            ).total_seconds() >= 1800  # 30 minutes
+        elif message_type == "trade_batch":
+            return (now - self.last_trade_publish).total_seconds() >= 300  # 5 minutes
+        return True  # For other message types
 
     async def publish(self, message: Message) -> bool:
         try:
-            if not self.can_publish():
+            message_type = message.metadata.get("type") if message.metadata else None
+            if not self.can_publish(message_type):
                 return False
 
             tweets = MessageSplitter.split_to_tweets(message)
@@ -61,7 +69,13 @@ class TwitterSink(MessageSink):
                     logger.error(f"Error publishing tweet: {str(e)}")
                     return False
 
-            self.last_publish = datetime.now(timezone.utc)
+            # Update the appropriate last publish time
+            now = datetime.now(timezone.utc)
+            if message_type == "portfolio":
+                self.last_portfolio_publish = now
+            elif message_type == "trade_batch":
+                self.last_trade_publish = now
+
             return True
         except Exception as e:
             logger.error(f"Error in Twitter sink: {str(e)}")
