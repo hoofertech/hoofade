@@ -95,15 +95,18 @@ class TradePublisher:
         """Main loop to process trades periodically"""
         first_run = True
         now = datetime.now(timezone.utc)
+
         while True:
             all_sources_done = False
             max_sleep = 0
+            should_load_positions = False
 
+            # First process trades for all sources to get correct timestamp
             for source in self.sources.values():
-                # Process trades
                 if not await source.load_last_day_trades():
                     logger.error(f"Failed to load trades for source {source.source_id}")
                     continue
+
                 logger.info(f"Loading new trades for source {source.source_id}")
                 new_trades = await self.trade_service.get_new_trades()
                 logger.info(
@@ -113,44 +116,44 @@ class TradePublisher:
                 if new_trades:
                     now = min(trade.timestamp for trade in new_trades)
                     logger.info(f">>> Newest trade timestamp: {now}")
+
+                    # Check if we should post portfolio
+                    if await self.position_service.should_post_portfolio(now):
+                        should_load_positions = True
                 else:
                     logger.info(
                         f">>> No new trades for source {source.source_id}: {now}"
                     )
 
-                # Check if we should post portfolio
-                should_post = await self.position_service.should_post_portfolio(
-                    source.source_id, now
-                )
-
-                if should_post:
+            # Load and merge positions if needed
+            if should_load_positions or first_run:
+                # Load positions from all sources
+                for source in self.sources.values():
                     if not await source.load_positions():
                         logger.error(f"Failed to connect to source {source.source_id}")
                         continue
-                    await self.position_service.publish_portfolio(source, now)
-                else:
-                    if first_run:
-                        if not await source.load_positions():
-                            logger.error(
-                                f"Failed to connect to source {source.source_id}"
-                            )
-                            continue
-                    logger.info(f"Skipping portfolio for source {source.source_id}")
 
-                logger.info(
-                    f"Publishing {len(new_trades)} trades for source {source.source_id}"
-                )
+                # Use TradeService's position merging logic
+                merged_positions = await self.trade_service.get_merged_positions()
+                if merged_positions:
+                    await self.position_service.publish_portfolio(merged_positions, now)
+
+            # Now publish trades for all sources
+            new_trades = await self.trade_service.get_new_trades()
+            if new_trades:
+                logger.info(f"Publishing {len(new_trades)} trades.")
                 await self.trade_service.publish_trades(new_trades)
-                logger.info(
-                    f"Published {len(new_trades)} trades for source {source.source_id}"
-                )
+                logger.info(f"Published {len(new_trades)} trades.")
 
+            # Check if all sources are done
+            for source in self.sources.values():
                 all_sources_done = all_sources_done or source.is_done()
                 max_sleep = max(max_sleep, source.get_sleep_time())
 
             if all_sources_done:
                 logger.info("All sources are done, exiting")
                 break
+
             first_run = False
             logger.info(f"Sleeping for {max_sleep} seconds")
             await asyncio.sleep(max_sleep)

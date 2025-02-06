@@ -8,7 +8,7 @@ from models.db_trade import DBTrade
 from sources.base import TradeSource
 from sinks.base import MessageSink
 from formatters.trade import TradeFormatter
-from models.position import Position
+from models.position import Position, InstrumentType
 from services.trade_processor import (
     TradeProcessor,
     ProcessingResult,
@@ -39,14 +39,44 @@ class TradeService:
         """Get and process new trades from all sources."""
         all_trades = []
         saved_trades = []
-        source_positions = {}  # Store positions by source_id
 
         # First collect all trades and positions from sources
+        positions_by_key = {}  # Store merged positions by instrument key
+
+        # Get and merge positions from all sources
         for source_id, source in self.sources.items():
-            logger.debug(f"Processing trades from {source.source_id}")
-            # Get positions for each source
-            positions = [pos for pos in source.get_positions()]
-            source_positions[source_id] = positions
+            logger.debug(f"Processing positions from {source.source_id}")
+            for position in source.get_positions():
+                # Skip positions with zero quantity
+                if position.quantity == 0:
+                    continue
+
+                key = self._get_position_key(position)
+                if key in positions_by_key:
+                    # Merge with existing position
+                    existing = positions_by_key[key]
+                    total_quantity = existing.quantity + position.quantity
+
+                    # Skip if merged position would have zero quantity
+                    if total_quantity == 0:
+                        del positions_by_key[key]
+                        continue
+
+                    # Calculate weighted average cost basis
+                    weighted_cost = (
+                        existing.quantity * existing.cost_basis
+                        + position.quantity * position.cost_basis
+                    ) / total_quantity
+
+                    positions_by_key[key] = Position(
+                        instrument=position.instrument,
+                        quantity=total_quantity,
+                        cost_basis=weighted_cost,
+                        market_price=position.market_price,  # Use latest mark price
+                    )
+                else:
+                    # New position
+                    positions_by_key[key] = position
 
             # Get trades
             for trade in source.get_last_day_trades():
@@ -58,33 +88,24 @@ class TradeService:
         if not all_trades:
             return []
 
-        # 2. Get current portfolio positions
-        positions = []
-        if self.position_service:
-            for source in self.sources.values():
-                positions.extend(source.get_positions())
+        # Use merged positions for processing
+        merged_positions = list(positions_by_key.values())
 
-        # 3. Process trades through pipeline
-        processor = TradeProcessor(positions)
+        # Process trades through pipeline
+        processor = TradeProcessor(merged_positions)
         processed_results, portfolio_matches = processor.process_trades(all_trades)
 
-        # Apply portfolio matches to source positions
-        if portfolio_matches:
-            for match in portfolio_matches:
-                match_applied = False
-                for source_id, positions in source_positions.items():
-                    # Try to find and apply match to this source's positions
-                    if self._apply_portfolio_match(match, positions):
-                        match_applied = True
-                        logger.info(f"Applied portfolio match to source {source_id}")
-                        break
-
-                if not match_applied:
-                    logger.warning(
-                        "Could not find matching position for portfolio match"
-                    )
-
         return processed_results
+
+    def _get_position_key(self, position: Position) -> str:
+        """Generate a unique key for a position based on instrument details."""
+        instrument = position.instrument
+        if instrument.type == InstrumentType.OPTION and instrument.option_details:
+            return (
+                f"{instrument.symbol}_{instrument.option_details.expiry}_"
+                f"{instrument.option_details.strike}_{instrument.option_details.option_type}"
+            )
+        return instrument.symbol
 
     def _apply_portfolio_match(
         self, match: ProfitTaker, positions: List[Position]
@@ -203,3 +224,44 @@ class TradeService:
             logger.error(f"Error saving trade: {str(e)}")
             await self.db.rollback()
             raise e
+
+    async def get_merged_positions(self) -> List[Position]:
+        """Get merged positions from all sources."""
+        positions_by_key = {}  # Store merged positions by instrument key
+
+        # Get and merge positions from all sources
+        for source_id, source in self.sources.items():
+            logger.debug(f"Processing positions from {source.source_id}")
+            for position in source.get_positions():
+                # Skip positions with zero quantity
+                if position.quantity == 0:
+                    continue
+
+                key = self._get_position_key(position)
+                if key in positions_by_key:
+                    # Merge with existing position
+                    existing = positions_by_key[key]
+                    total_quantity = existing.quantity + position.quantity
+
+                    # Skip if merged position would have zero quantity
+                    if total_quantity == 0:
+                        del positions_by_key[key]
+                        continue
+
+                    # Calculate weighted average cost basis
+                    weighted_cost = (
+                        existing.quantity * existing.cost_basis
+                        + position.quantity * position.cost_basis
+                    ) / total_quantity
+
+                    positions_by_key[key] = Position(
+                        instrument=position.instrument,
+                        quantity=total_quantity,
+                        cost_basis=weighted_cost,
+                        market_price=position.market_price,  # Use latest mark price
+                    )
+                else:
+                    # New position
+                    positions_by_key[key] = position
+
+        return list(positions_by_key.values())

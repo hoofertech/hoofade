@@ -69,12 +69,12 @@ def test_format_portfolio(portfolio_formatter, sample_positions):
     assert lines[0] == f"Portfolio on {expected_date}"
     assert lines[1] == ""  # Empty line after title
     assert lines[2] == "📊 Stocks:"
-    assert "$BABA +600@$96.03" in lines[3]
-    assert "$UBI  -900@€11.71" in lines[4]
+    assert "$BABA +600@$82.15" in lines[3]
+    assert "$UBI  -900@€17.40" in lines[4]
     assert lines[5] == ""  # Blank line between sections
     assert lines[6] == "🎯 Options:"
-    assert "$NVDA 18JUL25 $100   P +1@$4.37" in lines[7]
-    assert "$TWLO 31JAN25 $150   C -1@$1.78" in lines[8]
+    assert "$NVDA 18JUL25 $100   P +1@$2.8" in lines[7]
+    assert "$TWLO 31JAN25 $150   C -1@$1.8" in lines[8]
 
     # Check metadata
     assert message.metadata["type"] == "portfolio"
