@@ -158,17 +158,21 @@ class TradeProcessor:
     def _combine_same_direction_trades(
         self, trades: List[Trade], side: str
     ) -> CombinedTrade:
-        """Combine multiple trades into a single trade with weighted average price"""
-        total_quantity = Decimal(
-            sum(abs(t.quantity) for t in trades)
-        )  # Convert to Decimal
-        weighted_sum = Decimal(
-            sum(abs(t.quantity) * t.price for t in trades)
-        )  # Convert to Decimal
-        weighted_price = (
-            weighted_sum / total_quantity if total_quantity > 0 else Decimal("0")
-        )
-        latest_timestamp = max(t.timestamp for t in trades)
+        """Combine multiple trades of the same direction into a single trade"""
+        if not trades:
+            return None
+
+        total_quantity = Decimal("0")
+        total_value = Decimal("0")
+        latest_timestamp = trades[0].timestamp
+
+        for trade in trades:
+            quantity = abs(trade.quantity)
+            total_quantity += quantity
+            total_value += quantity * trade.price
+            latest_timestamp = max(latest_timestamp, trade.timestamp)
+
+        weighted_price = total_value / total_quantity if total_quantity > 0 else Decimal("0")
 
         return CombinedTrade(
             instrument=trades[0].instrument,
@@ -278,6 +282,7 @@ class TradeProcessor:
         """Create a new CombinedTrade with only the trades needed for target quantity"""
         remaining_quantity = target_quantity
         matched_trades = []
+        total_value = Decimal("0")
 
         for t in trade.trades:
             if remaining_quantity <= 0:
@@ -285,6 +290,7 @@ class TradeProcessor:
 
             trade_quantity = min(abs(t.quantity), remaining_quantity)
             remaining_quantity -= trade_quantity
+            total_value += trade_quantity * t.price
 
             if trade_quantity == abs(t.quantity):
                 matched_trades.append(t)
@@ -302,10 +308,13 @@ class TradeProcessor:
                 )
                 matched_trades.append(partial_trade)
 
+        # Calculate correct weighted price based on matched trades
+        weighted_price = total_value / target_quantity if target_quantity > 0 else Decimal("0")
+
         return CombinedTrade(
             instrument=trade.instrument,
             quantity=target_quantity,
-            weighted_price=trade.weighted_price,
+            weighted_price=weighted_price,
             trades=matched_trades,
             timestamp=trade.timestamp,
             currency=trade.currency,

@@ -7,6 +7,8 @@ from sources.base import TradeSource
 from formatters.portfolio import PortfolioFormatter
 from sinks.base import MessageSink
 from models.position import Position
+from sqlalchemy import text
+from datetime import timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -41,24 +43,37 @@ class PositionService:
 
     async def should_post_portfolio(self, now: datetime) -> bool:
         """Check if we should post portfolio based on last post time"""
-        last_post = await self._get_last_portfolio_post()
+        last_post = await self._get_last_portfolio_post("all")
         logger.info(f"Last portfolio post: {last_post}")
         if last_post is None:
             return True
 
         last_post_day = last_post.date()
         current_day = now.date()
-        logger.info(f"Last post day: {last_post_day}, current day: {current_day}")
+        logger.info(
+            f"Last post day: {last_post_day}, current day: {current_day}: {"should post" if current_day > last_post_day else "should not post"}"
+        )
         return current_day > last_post_day
 
-    async def _get_last_portfolio_post(self) -> Optional[datetime]:
+    async def _get_last_portfolio_post(self, source_id: str) -> Optional[datetime]:
         """Get the last portfolio post timestamp from DB"""
-        query = select(DBPortfolio).where(DBPortfolio.source_id == "all")
-        result = await self.db.execute(query)
-        record = result.scalar_one_or_none()
-        if record is None:
+        try:
+            query = select(DBPortfolio).where(DBPortfolio.source_id == source_id)
+            result = await self.db.execute(query)
+            record = result.scalar_one_or_none()
+
+            if record is None:
+                logger.warning(f"No portfolio post found for source_id: {source_id}")
+                return None
+
+            # Ensure the timestamp is timezone-aware
+            if record.last_post.tzinfo is None:
+                record.last_post = record.last_post.replace(tzinfo=timezone.utc)
+
+            return cast(datetime, record.last_post)
+        except Exception as e:
+            logger.error(f"Error getting last portfolio post: {str(e)}")
             return None
-        return cast(datetime, record.last_post)
 
     async def _save_portfolio_post(self, timestamp: datetime):
         """Save or update the last portfolio post timestamp"""

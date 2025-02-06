@@ -141,14 +141,12 @@ class TradeFormatter:
         )
         symbol_width = len(symbol_text)
         quantity_width = len(str(int(quantity)))
-        price_width = len(f"{profit_taker.sell_trade.weighted_price:.2f}")
         pl_width = len(f"{abs(profit_taker.profit_percentage):.2f}")
 
         # Main profit/loss line
         content = [
             f"{pl_emoji} {pl_text} {symbol_text:<{symbol_width}} "
-            f"{int(quantity):>{quantity_width}}@"
-            f"{currency_symbol}{profit_taker.sell_trade.weighted_price:>{price_width}.2f} "
+            f"{int(quantity):>{quantity_width}} "
             f"-> {pl_sign}{profit_taker.profit_percentage:>{pl_width}.2f}% "
             f"({pl_amount_sign}{currency_symbol}{abs(profit_taker.profit_amount):.2f})",
         ]
@@ -188,16 +186,30 @@ class TradeFormatter:
         # Combine all trades and sort by timestamp
         all_trades = []
 
+        # Helper function to consolidate trades
+        def add_trades_consolidated(trades: List[Trade], side: str, from_position: bool = False):
+            if not trades:
+                return
+            
+            # Group trades by price and timestamp
+            grouped = {}
+            for trade in trades:
+                key = (trade.price, trade.timestamp if not from_position else None)
+                if key not in grouped:
+                    grouped[key] = Decimal('0')
+                grouped[key] += abs(trade.quantity)
+            
+            # Add consolidated trades
+            for (price, timestamp), total_quantity in grouped.items():
+                all_trades.append((side, timestamp, total_quantity, price, from_position))
+
         # Handle buy position
         if not buy_trade.trades:
             all_trades.append(
                 ("BUY", None, buy_trade.quantity, buy_trade.weighted_price, True)
             )
         else:
-            for trade in buy_trade.trades:
-                all_trades.append(
-                    ("BUY", trade.timestamp, abs(trade.quantity), trade.price, False)
-                )
+            add_trades_consolidated(buy_trade.trades, "BUY")
 
         # Handle sell position
         if not sell_trade.trades:
@@ -205,18 +217,13 @@ class TradeFormatter:
                 ("SELL", None, sell_trade.quantity, sell_trade.weighted_price, True)
             )
         else:
-            for trade in sell_trade.trades:
-                all_trades.append(
-                    ("SELL", trade.timestamp, abs(trade.quantity), trade.price, False)
-                )
+            add_trades_consolidated(sell_trade.trades, "SELL")
 
         # Sort trades - positions (from_position=True) first, then by timestamp
         all_trades.sort(key=lambda x: (not x[4], x[1] or datetime.min))
 
         # Format each trade
-        for i, (side, timestamp, quantity, price, from_position) in enumerate(
-            all_trades
-        ):
+        for i, (side, timestamp, quantity, price, from_position) in enumerate(all_trades):
             prefix = "    └─ " if i == len(all_trades) - 1 else "    ├─ "
 
             if from_position:

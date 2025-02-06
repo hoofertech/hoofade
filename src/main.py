@@ -93,7 +93,6 @@ class TradePublisher:
 
     async def run(self):
         """Main loop to process trades periodically"""
-        first_run = True
         now = datetime.now(timezone.utc)
 
         while True:
@@ -116,15 +115,16 @@ class TradePublisher:
             if new_trades:
                 now = min(trade.timestamp for trade in new_trades)
                 logger.info(f">>> Newest trade timestamp: {now}")
-
-                # Check if we should post portfolio
-                if await self.position_service.should_post_portfolio(now):
-                    should_load_positions = True
             else:
                 logger.info(f">>> No new trades for source {source.source_id}: {now}")
 
+
+            # Check if we should post portfolio
+            if await self.position_service.should_post_portfolio(now):
+                should_load_positions = True
+
             # Load and merge positions if needed
-            if should_load_positions or first_run:
+            if should_load_positions:
                 # Load positions from all sources
                 for source in self.sources.values():
                     if not await source.load_positions():
@@ -151,7 +151,6 @@ class TradePublisher:
                 logger.info("All sources are done, exiting")
                 break
 
-            first_run = False
             logger.info(f"Sleeping for {max_sleep} seconds")
             await asyncio.sleep(max_sleep)
 
