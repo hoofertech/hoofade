@@ -30,7 +30,8 @@ class TradeFormatter:
             if isinstance(trade, ProfitTaker):
                 self.total_profit += trade.profit_amount
                 trade_count = int(
-                    (trade.buy_trade.quantity + trade.sell_trade.quantity) / 2
+                    (len(trade.buy_trade.trades) if trade.buy_trade.trades else 0)
+                    + (len(trade.sell_trade.trades) if trade.sell_trade.trades else 0)
                 )
                 self.total_trades += trade_count
                 if trade.profit_percentage > 0:

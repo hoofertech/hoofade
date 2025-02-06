@@ -100,6 +100,7 @@ class TradePublisher:
             all_sources_done = False
             max_sleep = 0
             should_load_positions = False
+            new_trades = []
 
             # First process trades for all sources to get correct timestamp
             for source in self.sources.values():
@@ -107,23 +108,20 @@ class TradePublisher:
                     logger.error(f"Failed to load trades for source {source.source_id}")
                     continue
 
-                logger.info(f"Loading new trades for source {source.source_id}")
-                new_trades = await self.trade_service.get_new_trades()
-                logger.info(
-                    f"Loaded {len(new_trades)} trades for source {source.source_id}"
-                )
+            new_trades = await self.trade_service.get_new_trades()
+            logger.info(
+                f"Loaded {len(new_trades)} trades for source {source.source_id}"
+            )
 
-                if new_trades:
-                    now = min(trade.timestamp for trade in new_trades)
-                    logger.info(f">>> Newest trade timestamp: {now}")
+            if new_trades:
+                now = min(trade.timestamp for trade in new_trades)
+                logger.info(f">>> Newest trade timestamp: {now}")
 
-                    # Check if we should post portfolio
-                    if await self.position_service.should_post_portfolio(now):
-                        should_load_positions = True
-                else:
-                    logger.info(
-                        f">>> No new trades for source {source.source_id}: {now}"
-                    )
+                # Check if we should post portfolio
+                if await self.position_service.should_post_portfolio(now):
+                    should_load_positions = True
+            else:
+                logger.info(f">>> No new trades for source {source.source_id}: {now}")
 
             # Load and merge positions if needed
             if should_load_positions or first_run:
@@ -138,8 +136,7 @@ class TradePublisher:
                 if merged_positions:
                     await self.position_service.publish_portfolio(merged_positions, now)
 
-            # Now publish trades for all sources
-            new_trades = await self.trade_service.get_new_trades()
+            # Now publish trades
             if new_trades:
                 logger.info(f"Publishing {len(new_trades)} trades.")
                 await self.trade_service.publish_trades(new_trades)
