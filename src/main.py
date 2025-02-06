@@ -106,14 +106,18 @@ class TradePublisher:
                     continue
                 logger.info(f"Loading new trades for source {source.source_id}")
                 new_trades = await self.trade_service.get_new_trades()
-                logger.info(f"Loaded {len(new_trades)} trades for source {source.source_id}")
-                
+                logger.info(
+                    f"Loaded {len(new_trades)} trades for source {source.source_id}"
+                )
+
                 if new_trades:
                     now = min(trade.timestamp for trade in new_trades)
                     logger.info(f">>> Newest trade timestamp: {now}")
                 else:
-                    logger.info(f">>> No new trades for source {source.source_id}: {now}")
-                
+                    logger.info(
+                        f">>> No new trades for source {source.source_id}: {now}"
+                    )
+
                 # Check if we should post portfolio
                 should_post = await self.position_service.should_post_portfolio(
                     source.source_id, now
@@ -133,10 +137,13 @@ class TradePublisher:
                             continue
                     logger.info(f"Skipping portfolio for source {source.source_id}")
 
-                
-                logger.info(f"Publishing {len(new_trades)} trades for source {source.source_id}")
+                logger.info(
+                    f"Publishing {len(new_trades)} trades for source {source.source_id}"
+                )
                 await self.trade_service.publish_trades(new_trades)
-                logger.info(f"Published {len(new_trades)} trades for source {source.source_id}")
+                logger.info(
+                    f"Published {len(new_trades)} trades for source {source.source_id}"
+                )
 
                 all_sources_done = all_sources_done or source.is_done()
                 max_sleep = max(max_sleep, source.get_sleep_time())
