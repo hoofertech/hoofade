@@ -26,7 +26,7 @@ class JsonSource(TradeSource):
 
     async def load_positions(self) -> bool:
         try:
-            positions_data = self.parser.load_latest_portfolio(self.data_dir)
+            positions_data = self.parser.load_latest_portfolio(self.data_dir, self.iter)
             if positions_data is None:
                 return False
 
@@ -50,10 +50,12 @@ class JsonSource(TradeSource):
         return self.positions
 
     async def load_last_day_trades(self) -> bool:
-        NUM_TRADERS_PER_ITERATION = 10
+        self.last_day_trades = []
         try:
-            trades_data = self.parser.load_latest_trades(self.data_dir)
+            trades_data = self.parser.load_latest_trades(self.data_dir, self.iter)
+            self.iter += 1
             if trades_data is None:
+                self.json_done = True
                 return True
 
             parsed_trades = self.parser.parse_executions_from_dict(
@@ -65,24 +67,9 @@ class JsonSource(TradeSource):
             self.last_day_trades = [
                 trade for trade in parsed_trades if trade.timestamp >= since
             ]
-            if self.iter * NUM_TRADERS_PER_ITERATION < len(parsed_trades):
-                start_index = 0
-                next_start_index = start_index = self.iter * NUM_TRADERS_PER_ITERATION
-                end_index = min(
-                    next_start_index + NUM_TRADERS_PER_ITERATION, len(parsed_trades)
-                )
-                self.last_day_trades = [
-                    trade
-                    for trade in parsed_trades[start_index:end_index]
-                    if trade.timestamp >= since
-                ]
-            else:
-                self.last_day_trades = []
-                self.json_done = True
             logger.info(
                 f"Loaded {len(self.last_day_trades)} trades for {self.source_id}"
             )
-            self.iter += 1
             return True
         except Exception as e:
             logger.error(f"Error fetching trades: {e}")

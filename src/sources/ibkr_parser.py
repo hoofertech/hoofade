@@ -15,13 +15,16 @@ logger = logging.getLogger(__name__)
 
 class FlexReportParser:
     @staticmethod
-    def load_latest_file(data_dir: Path, pattern: str) -> Optional[Dict[str, Any]]:
+    def load_latest_file(data_dir: Path, pattern: str, iter: int) -> Optional[Dict[str, Any]]:
         """Load the most recent file matching the pattern from directory"""
         files = sorted(data_dir.glob(pattern))
         if not files:
             return None
 
-        latest_file = files[-1]
+        if iter >= len(files):
+            return None
+
+        latest_file = files[iter]
         try:
             with open(latest_file) as f:
                 return json.load(f)
@@ -30,17 +33,17 @@ class FlexReportParser:
             return None
 
     @staticmethod
-    def load_latest_trades(data_dir: Path) -> Optional[List[Dict[str, Any]]]:
+    def load_latest_trades(data_dir: Path, iter: int) -> Optional[List[Dict[str, Any]]]:
         """Load the most recent trades file"""
-        data = FlexReportParser.load_latest_file(data_dir, "trades_*.json")
+        data = FlexReportParser.load_latest_file(data_dir, "trades_*.json", iter)
         if not data:
             return None
         return data.get("TradeConfirm", [])
 
     @staticmethod
-    def load_latest_portfolio(data_dir: Path) -> Optional[List[Dict[str, Any]]]:
+    def load_latest_portfolio(data_dir: Path, iter: int) -> Optional[List[Dict[str, Any]]]:
         """Load the most recent portfolio file"""
-        data = FlexReportParser.load_latest_file(data_dir, "portfolio_*.json")
+        data = FlexReportParser.load_latest_file(data_dir, "portfolio_*.json", iter)
         if not data:
             return None
         return data.get("OpenPosition", [])

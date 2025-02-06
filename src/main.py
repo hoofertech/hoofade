@@ -94,12 +94,26 @@ class TradePublisher:
     async def run(self):
         """Main loop to process trades periodically"""
         first_run = True
+        now = datetime.now(timezone.utc)
         while True:
-            now = datetime.now(timezone.utc)
             all_sources_done = False
             max_sleep = 0
 
             for source in self.sources.values():
+                # Process trades
+                if not await source.load_last_day_trades():
+                    logger.error(f"Failed to load trades for source {source.source_id}")
+                    continue
+                logger.info(f"Loading new trades for source {source.source_id}")
+                new_trades = await self.trade_service.get_new_trades()
+                logger.info(f"Loaded {len(new_trades)} trades for source {source.source_id}")
+                
+                if new_trades:
+                    now = min(trade.timestamp for trade in new_trades)
+                    logger.info(f">>> Newest trade timestamp: {now}")
+                else:
+                    logger.info(f">>> No new trades for source {source.source_id}: {now}")
+                
                 # Check if we should post portfolio
                 should_post = await self.position_service.should_post_portfolio(
                     source.source_id, now
@@ -119,20 +133,19 @@ class TradePublisher:
                             continue
                     logger.info(f"Skipping portfolio for source {source.source_id}")
 
-                # Process trades
-                if not await source.load_last_day_trades():
-                    logger.error(f"Failed to load trades for source {source.source_id}")
-                    continue
-
-                new_trades = await self.trade_service.get_new_trades()
+                
+                logger.info(f"Publishing {len(new_trades)} trades for source {source.source_id}")
                 await self.trade_service.publish_trades(new_trades)
+                logger.info(f"Published {len(new_trades)} trades for source {source.source_id}")
 
                 all_sources_done = all_sources_done or source.is_done()
                 max_sleep = max(max_sleep, source.get_sleep_time())
 
             if all_sources_done:
+                logger.info("All sources are done, exiting")
                 break
             first_run = False
+            logger.info(f"Sleeping for {max_sleep} seconds")
             await asyncio.sleep(max_sleep)
 
 
@@ -202,7 +215,7 @@ async def main():
     # Keep the program running
     try:
         while True:
-            await asyncio.sleep(3600)  # Sleep for an hour
+            await asyncio.sleep(60)  # Sleep for a minute
     except KeyboardInterrupt:
         logger.info("Shutting down...")
     finally:
