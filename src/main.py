@@ -98,7 +98,6 @@ class TradePublisher:
         while True:
             all_sources_done = False
             max_sleep = 0
-            should_load_positions = False
             new_trades = []
 
             # First process trades for all sources to get correct timestamp
@@ -118,13 +117,8 @@ class TradePublisher:
             else:
                 logger.info(f">>> No new trades for source {source.source_id}: {now}")
 
-
-            # Check if we should post portfolio
-            if await self.position_service.should_post_portfolio(now):
-                should_load_positions = True
-
             # Load and merge positions if needed
-            if should_load_positions:
+            if await self.position_service.should_post_portfolio(now):
                 # Load positions from all sources
                 for source in self.sources.values():
                     if not await source.load_positions():
