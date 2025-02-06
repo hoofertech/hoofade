@@ -40,7 +40,7 @@ python -m pip install --upgrade pip
 # Install poetry if not installed
 if ! command -v poetry &> /dev/null; then
     print_status "Installing Poetry..."
-    curl -sSL https://install.python-poetry.org | python3 -
+    pip install poetry
 fi
 
 # Configure poetry to use the virtual environment
