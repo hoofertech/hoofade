@@ -7,7 +7,6 @@ from sources.base import TradeSource
 from formatters.portfolio import PortfolioFormatter
 from sinks.base import MessageSink
 from models.position import Position
-from sqlalchemy import text
 from datetime import timezone
 import logging
 
@@ -51,7 +50,7 @@ class PositionService:
         last_post_day = last_post.date()
         current_day = now.date()
         logger.info(
-            f"Last post day: {last_post_day}, current day: {current_day}: {"should post" if current_day > last_post_day else "should not post"}"
+            f"Last post day: {last_post_day}, current day: {current_day}: {'should post' if current_day > last_post_day else 'should not post'}"
         )
         return current_day > last_post_day
 

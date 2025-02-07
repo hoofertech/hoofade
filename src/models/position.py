@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from decimal import Decimal
+from datetime import datetime
 from models.instrument import Instrument, InstrumentType
 from typing import Dict, Any
 
@@ -12,6 +13,7 @@ class Position:
     quantity: Decimal  # Positive for long positions, negative for short positions
     cost_basis: Decimal  # Average cost per unit
     market_price: Decimal  # Current market price
+    report_time: datetime
 
     def __post_init__(self):
         """Validate position data after initialization"""

@@ -2,16 +2,9 @@ from datetime import datetime
 import logging
 from models.trade import Trade
 from sources.base import TradeSource
-import asyncio
 from typing import List
 from models.position import Position
 
-# Set up event loop
-try:
-    _event_loop = asyncio.get_running_loop()
-except RuntimeError:
-    _event_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(_event_loop)
 
 from .flex_client import FlexClient, FlexQueryConfig, FlexClientConfig
 

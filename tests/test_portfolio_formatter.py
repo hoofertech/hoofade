@@ -15,19 +15,21 @@ def portfolio_formatter():
 
 
 @pytest.fixture
-def sample_positions():
+def sample_positions(test_timestamp):
     positions = [
         Position(
             instrument=Instrument.stock(symbol="BABA", currency="USD"),
             quantity=Decimal("600"),
             market_price=Decimal("96.03"),
             cost_basis=Decimal("82.15"),
+            report_time=test_timestamp,
         ),
         Position(
             instrument=Instrument.stock(symbol="UBI", currency="EUR"),
             quantity=Decimal("-900"),  # Short position
             market_price=Decimal("11.71"),
             cost_basis=Decimal("17.40"),
+            report_time=test_timestamp,
         ),
         Position(
             instrument=Instrument.option(
@@ -40,6 +42,7 @@ def sample_positions():
             quantity=Decimal("1"),
             market_price=Decimal("4.37"),
             cost_basis=Decimal("2.80"),
+            report_time=test_timestamp,
         ),
         Position(
             instrument=Instrument.option(
@@ -52,6 +55,7 @@ def sample_positions():
             quantity=Decimal("-1"),  # Short position
             market_price=Decimal("1.78"),
             cost_basis=Decimal("1.80"),
+            report_time=test_timestamp,
         ),
     ]
     return positions

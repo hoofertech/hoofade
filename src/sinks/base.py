@@ -1,3 +1,11 @@
+import asyncio
+# Set up event loop
+try:
+    _event_loop = asyncio.get_running_loop()
+except RuntimeError:
+    _event_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(_event_loop)
+
 from abc import ABC, abstractmethod
 from models.message import Message
 

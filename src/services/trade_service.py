@@ -73,6 +73,7 @@ class TradeService:
                         quantity=total_quantity,
                         cost_basis=weighted_cost,
                         market_price=position.market_price,  # Use latest mark price
+                        report_time=position.report_time,
                     )
                 else:
                     # New position
@@ -188,9 +189,7 @@ class TradeService:
 
     async def _is_trade_published(self, trade: Trade) -> bool:
         """Check if a trade has already been published."""
-        query = select(DBTrade).where(
-            DBTrade.trade_id == trade.trade_id, DBTrade.source_id == trade.source_id
-        )
+        query = select(DBTrade).where(DBTrade.trade_id == trade.trade_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none() is not None
 
@@ -259,6 +258,7 @@ class TradeService:
                         quantity=total_quantity,
                         cost_basis=weighted_cost,
                         market_price=position.market_price,  # Use latest mark price
+                        report_time=position.report_time,
                     )
                 else:
                     # New position

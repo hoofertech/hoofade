@@ -20,26 +20,22 @@ class JsonSource(TradeSource):
         self.data_dir = Path(data_dir)
         self.positions: List[Position] = []
         self.parser = FlexReportParser()
-        self.iter = 0
+        self.trades_iter = 0
+        self.positions_iter = 0
         self.last_day_trades: List[Trade] = []
         self.json_done = False
 
     async def load_positions(self) -> bool:
         try:
-            positions_data = self.parser.load_latest_portfolio(self.data_dir, self.iter)
+            positions_data = self.parser.load_latest_portfolio(
+                self.data_dir, self.positions_iter
+            )
+            self.positions_iter += 1
             if positions_data is None:
+                logger.error(f"No positions data found for {self.source_id}")
                 return False
 
-            parsed_positions = self.parser.parse_positions_from_dict(positions_data)
-            self.positions = [
-                Position(
-                    instrument=pos.instrument,
-                    quantity=pos.quantity,
-                    cost_basis=pos.cost_basis,
-                    market_price=pos.market_price,
-                )
-                for pos in parsed_positions
-            ]
+            self.positions = positions_data
             return True
         except Exception as e:
             logger.error(f"Error connecting to JSON source: {e}")
@@ -52,8 +48,10 @@ class JsonSource(TradeSource):
     async def load_last_day_trades(self) -> bool:
         self.last_day_trades = []
         try:
-            trades_data = self.parser.load_latest_trades(self.data_dir, self.iter)
-            self.iter += 1
+            trades_data = self.parser.load_latest_trades(
+                self.data_dir, self.trades_iter
+            )
+            self.trades_iter += 1
             if trades_data is None:
                 self.json_done = True
                 return True

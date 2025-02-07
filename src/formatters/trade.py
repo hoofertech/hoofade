@@ -187,21 +187,25 @@ class TradeFormatter:
         all_trades = []
 
         # Helper function to consolidate trades
-        def add_trades_consolidated(trades: List[Trade], side: str, from_position: bool = False):
+        def add_trades_consolidated(
+            trades: List[Trade], side: str, from_position: bool = False
+        ):
             if not trades:
                 return
-            
+
             # Group trades by price and timestamp
             grouped = {}
             for trade in trades:
                 key = (trade.price, trade.timestamp if not from_position else None)
                 if key not in grouped:
-                    grouped[key] = Decimal('0')
+                    grouped[key] = Decimal("0")
                 grouped[key] += abs(trade.quantity)
-            
+
             # Add consolidated trades
             for (price, timestamp), total_quantity in grouped.items():
-                all_trades.append((side, timestamp, total_quantity, price, from_position))
+                all_trades.append(
+                    (side, timestamp, total_quantity, price, from_position)
+                )
 
         # Handle buy position
         if not buy_trade.trades:
@@ -223,7 +227,9 @@ class TradeFormatter:
         all_trades.sort(key=lambda x: (not x[4], x[1] or datetime.min))
 
         # Format each trade
-        for i, (side, timestamp, quantity, price, from_position) in enumerate(all_trades):
+        for i, (side, timestamp, quantity, price, from_position) in enumerate(
+            all_trades
+        ):
             prefix = "    └─ " if i == len(all_trades) - 1 else "    ├─ "
 
             if from_position:

@@ -194,7 +194,7 @@ def twitter_sink():
 
 
 @pytest.fixture
-def sample_positions(stock_instrument, call_option_instrument):
+def sample_positions(stock_instrument, call_option_instrument, test_timestamp):
     """Sample positions for testing"""
     return [
         Position(
@@ -202,11 +202,13 @@ def sample_positions(stock_instrument, call_option_instrument):
             quantity=Decimal("100"),
             market_price=Decimal("150.25"),
             cost_basis=Decimal("145.50"),
+            report_time=test_timestamp,
         ),
         Position(
             instrument=call_option_instrument,
             quantity=Decimal("5"),
             market_price=Decimal("3.50"),
             cost_basis=Decimal("2.75"),
+            report_time=test_timestamp,
         ),
     ]

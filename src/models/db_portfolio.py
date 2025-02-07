@@ -20,6 +20,7 @@ class TZDateTime(TypeDecorator):
                 value = value.replace(tzinfo=datetime.timezone.utc)
         return value
 
+
 class DBPortfolio(Base):
     __tablename__ = "portfolio_posts"
 

@@ -107,15 +107,13 @@ class TradePublisher:
                     continue
 
             new_trades = await self.trade_service.get_new_trades()
-            logger.info(
-                f"Loaded {len(new_trades)} trades for source {source.source_id}"
-            )
+            logger.info(f"Loaded {len(new_trades)} trades")
 
             if new_trades:
                 now = min(trade.timestamp for trade in new_trades)
                 logger.info(f">>> Newest trade timestamp: {now}")
             else:
-                logger.info(f">>> No new trades for source {source.source_id}: {now}")
+                logger.info(f">>> No new trades: {now}")
 
             # Load and merge positions if needed
             if await self.position_service.should_post_portfolio(now):
@@ -128,7 +126,24 @@ class TradePublisher:
                 # Use TradeService's position merging logic
                 merged_positions = await self.trade_service.get_merged_positions()
                 if merged_positions:
-                    await self.position_service.publish_portfolio(merged_positions, now)
+                    # Use the latest report time from any position
+                    latest_report_time = max(
+                        (
+                            p.report_time
+                            for p in merged_positions
+                            if p.report_time is not None
+                        ),
+                        default=None,
+                    )
+                    if latest_report_time:
+                        now = latest_report_time
+                        logger.info(f">>> Using latest position report time: {now}")
+
+                    # Check if we should publish with updated timestamp
+                    if await self.position_service.should_post_portfolio(now):
+                        await self.position_service.publish_portfolio(
+                            merged_positions, now
+                        )
 
             # Now publish trades
             if new_trades:

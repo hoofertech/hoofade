@@ -3,12 +3,12 @@ from typing import Dict, Any, Optional, List, Union
 import json
 import logging
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from models.instrument import Instrument, OptionType
 from models.position import Position
 from models.trade import Trade
-
+from ib_insync import FlexReport
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +43,18 @@ class FlexReportParser:
         return data.get("TradeConfirm", [])
 
     @staticmethod
-    def load_latest_portfolio(
-        data_dir: Path, iter: int
-    ) -> Optional[List[Dict[str, Any]]]:
+    def load_latest_portfolio(data_dir: Path, iter: int) -> Optional[List[Position]]:
         """Load the most recent portfolio file"""
         data = FlexReportParser.load_latest_file(data_dir, "portfolio_*.json", iter)
         if not data:
             return None
-        return data.get("OpenPosition", [])
+        report_time = data.get("whenGenerated")
+        if report_time:
+            report_time = datetime.strptime(report_time, "%Y%m%d;%H%M%S").replace(
+                tzinfo=timezone.utc
+            )
+
+        return FlexReportParser.parse_positions(data)
 
     @staticmethod
     def parse_flex_datetime(datetime_str: str) -> Optional[datetime]:
@@ -102,11 +106,35 @@ class FlexReportParser:
 
     @staticmethod
     def parse_positions(
-        data: Union[pd.DataFrame, List[Dict[str, Any]]] | None,
+        report: FlexReport | Dict[str, Any] | None,
     ) -> List[Position]:
+        data = (
+            report.df("OpenPosition")
+            if isinstance(report, FlexReport)
+            else report["OpenPosition"]
+        )
         """Parse positions from DataFrame or list of dicts"""
         if data is None:
             return []
+
+        stmt = (
+            report.df("FlexStatement")
+            if isinstance(report, FlexReport)
+            else report.get("FlexStatement")
+        )
+        stmt_list = []
+        if isinstance(stmt, pd.DataFrame) and not stmt.empty:
+            stmt_list = stmt.to_dict("records")
+        else:
+            stmt_list = stmt
+        report_time = max(stmt_list, key=lambda x: x.get("whenGenerated")).get(
+            "whenGenerated"
+        )
+        logger.info(f"Report time: {report_time}")
+        if report_time:
+            report_time = datetime.strptime(report_time, "%Y%m%d;%H%M%S").replace(
+                tzinfo=timezone.utc
+            )
 
         if isinstance(data, pd.DataFrame):
             if data.empty:
@@ -129,6 +157,7 @@ class FlexReportParser:
                         quantity=Decimal(str(item_dict.get("position", "0"))),
                         cost_basis=Decimal(str(item_dict.get("costBasisPrice", "0"))),
                         market_price=Decimal(str(item_dict.get("markPrice", "0"))),
+                        report_time=report_time,
                     )
                 )
             except Exception as e:
@@ -193,7 +222,5 @@ class FlexReportParser:
         return executions
 
     # Maintain backwards compatibility with existing method names
-    parse_positions_from_df = parse_positions
-    parse_positions_from_dict = parse_positions
     parse_executions_from_df = parse_executions
     parse_executions_from_dict = parse_executions

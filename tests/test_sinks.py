@@ -43,13 +43,17 @@ async def test_twitter_sink_rate_limit(twitter_sink):
 
         # First message should succeed
         message1 = Message(
-            content="Test message 1", timestamp=datetime.now(timezone.utc), metadata={}
+            content="Test message 1",
+            timestamp=datetime.now(timezone.utc),
+            metadata={"type": "trade_batch"},
         )
         assert await twitter_sink.publish(message1)
 
         # Second message should fail due to rate limit
         message2 = Message(
-            content="Test message 2", timestamp=datetime.now(timezone.utc), metadata={}
+            content="Test message 2",
+            timestamp=datetime.now(timezone.utc),
+            metadata={"type": "trade_batch"},
         )
         assert not await twitter_sink.publish(message2)
 

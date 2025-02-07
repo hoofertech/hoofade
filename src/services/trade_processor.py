@@ -145,19 +145,19 @@ class TradeProcessor:
 
             combined[instrument_key] = []
             if buys:
-                combined[instrument_key].append(
-                    self._combine_same_direction_trades(buys, "BUY")
-                )
+                combined_trade = self._combine_same_direction_trades(buys, "BUY")
+                if combined_trade:
+                    combined[instrument_key].append(combined_trade)
             if sells:
-                combined[instrument_key].append(
-                    self._combine_same_direction_trades(sells, "SELL")
-                )
+                combined_trade = self._combine_same_direction_trades(sells, "SELL")
+                if combined_trade:
+                    combined[instrument_key].append(combined_trade)
 
         return combined
 
     def _combine_same_direction_trades(
         self, trades: List[Trade], side: str
-    ) -> CombinedTrade:
+    ) -> CombinedTrade | None:
         """Combine multiple trades of the same direction into a single trade"""
         if not trades:
             return None
@@ -172,7 +172,9 @@ class TradeProcessor:
             total_value += quantity * trade.price
             latest_timestamp = max(latest_timestamp, trade.timestamp)
 
-        weighted_price = total_value / total_quantity if total_quantity > 0 else Decimal("0")
+        weighted_price = (
+            total_value / total_quantity if total_quantity > 0 else Decimal("0")
+        )
 
         return CombinedTrade(
             instrument=trades[0].instrument,
@@ -309,7 +311,9 @@ class TradeProcessor:
                 matched_trades.append(partial_trade)
 
         # Calculate correct weighted price based on matched trades
-        weighted_price = total_value / target_quantity if target_quantity > 0 else Decimal("0")
+        weighted_price = (
+            total_value / target_quantity if target_quantity > 0 else Decimal("0")
+        )
 
         return CombinedTrade(
             instrument=trade.instrument,
