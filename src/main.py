@@ -168,10 +168,6 @@ class TradePublisher:
 
             # Now publish trades
             if new_trades:
-                if not await self.position_service.should_post_portfolio(now):
-                    await self.position_service.publish_portfolio(
-                        self.position_service.merged_positions, now
-                    )
                 logger.info(f"Publishing {len(new_trades)} trades.")
                 await self.trade_service.publish_trades(new_trades)
                 logger.info(f"Published {len(new_trades)} trades.")
