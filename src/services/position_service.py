@@ -10,8 +10,7 @@ from models.position import Position
 from datetime import timezone
 from services.trade_processor import ProfitTaker
 import logging
-from services.trade_service import TradeService
-
+from models.instrument import InstrumentType
 logger = logging.getLogger(__name__)
 
 
@@ -26,6 +25,7 @@ class PositionService:
         self.sinks = sinks
         self.db = db
         self.portfolio_formatter = PortfolioFormatter()
+        self.merged_positions: List[Position] = []
 
     async def publish_portfolio(self, positions: List[Position], timestamp: datetime):
         message = self.portfolio_formatter.format_portfolio(positions, timestamp)
@@ -93,6 +93,7 @@ class PositionService:
         Apply a profit taker to the portfolio positions.
         Returns True if successfully applied.
         """
+        new_positions = []
         # Find matching position
         for position in positions:
             if position.instrument == profit_taker.instrument:
@@ -118,6 +119,7 @@ class PositionService:
                         f"Removed closed position for {position.instrument.symbol}"
                     )
                 else:
+                    new_positions.append(position)
                     logger.info(
                         f"Updated position quantity for {position.instrument.symbol} "
                         f"from {position.quantity + matched_quantity} to {position.quantity}"
@@ -139,7 +141,7 @@ class PositionService:
                 if position.quantity == 0:
                     continue
 
-                key = TradeService.get_position_key(position)
+                key = PositionService.get_position_key(position)
                 if key in positions_by_key:
                     # Merge with existing position
                     existing = positions_by_key[key]
@@ -168,3 +170,15 @@ class PositionService:
                     positions_by_key[key] = position
 
         return list(positions_by_key.values())
+
+
+    @staticmethod
+    def get_position_key(position: Position) -> str:
+        """Generate a unique key for a position based on instrument details."""
+        instrument = position.instrument
+        if instrument.type == InstrumentType.OPTION and instrument.option_details:
+            return (
+                f"{instrument.symbol}_{instrument.option_details.expiry}_"
+                f"{instrument.option_details.strike}_{instrument.option_details.option_type}"
+            )
+        return instrument.symbol

@@ -77,6 +77,7 @@ class TradeProcessor:
         profit_takers, remaining_after_profit = self._generate_profit_takers(
             combined_trades
         )
+
         results.extend(profit_takers)
 
         # 4. Match remaining trades with portfolio positions

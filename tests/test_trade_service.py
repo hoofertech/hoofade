@@ -5,6 +5,7 @@ from services.trade_service import TradeService
 from models.trade import Trade
 from formatters.trade import TradeFormatter
 from services.trade_processor import ProfitTaker
+from services.position_service import PositionService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -14,19 +15,25 @@ logger = logging.getLogger(__name__)
 def trade_service(mock_source, mock_sink, db_session):
     sources = {"test": mock_source}
     sinks = {"test": mock_sink}
-    return TradeService(sources, sinks, db_session, formatter=TradeFormatter())
+    return TradeService(
+        sources,
+        sinks,
+        db_session,
+        formatter=TradeFormatter(),
+        position_service=PositionService(sources, sinks, db_session),
+    )
 
 
 @pytest.mark.asyncio
 async def test_get_new_trades(trade_service, sample_trade, db_session):
     # First time should return the trade
-    new_trades = await trade_service.get_new_trades()
+    new_trades, _portfolio_matches = await trade_service.get_new_trades()
     assert len(new_trades) == 1
     assert len(new_trades[0].trades) == 1
     assert new_trades[0].trades[0].trade_id == sample_trade.trade_id
 
     # Second time should return empty (already published)
-    new_trades = await trade_service.get_new_trades()
+    new_trades, _portfolio_matches = await trade_service.get_new_trades()
     assert len(new_trades) == 0
 
 
@@ -37,7 +44,7 @@ async def test_get_new_trades_with_matching(
     # Add both trades
     trade_service.sources["test"].trades = [sample_trade, matching_trade]
 
-    new_trades = await trade_service.get_new_trades()
+    new_trades, _portfolio_matches = await trade_service.get_new_trades()
     assert len(new_trades) == 1
     profit_taker = new_trades[0]
     assert isinstance(profit_taker, ProfitTaker)

@@ -106,7 +106,6 @@ class TradePublisher:
                     logger.error(f"Failed to load trades for source {source.source_id}")
                     continue
 
-            merged_positions = []
             # Load and merge positions if needed
             if await self.position_service.should_post_portfolio(now):
                 # Load positions from all sources
@@ -116,13 +115,15 @@ class TradePublisher:
                         continue
 
                 # Use TradeService's position merging logic
-                merged_positions = await self.position_service.get_merged_positions()
-                if merged_positions:
+                self.position_service.merged_positions = (
+                    await self.position_service.get_merged_positions()
+                )
+                if self.position_service.merged_positions:
                     # Use the latest report time from any position
                     latest_report_time = max(
                         (
                             p.report_time
-                            for p in merged_positions
+                            for p in self.position_service.merged_positions
                             if p.report_time is not None
                         ),
                         default=None,
@@ -149,7 +150,7 @@ class TradePublisher:
                 )
                 for profit_taker in portfolio_profit_takers:
                     if await self.position_service.apply_profit_taker(
-                        profit_taker, merged_positions
+                        profit_taker, self.position_service.merged_positions
                     ):
                         logger.info(
                             f"Applied portfolio profit taker for {profit_taker.instrument.symbol}"
@@ -157,10 +158,16 @@ class TradePublisher:
 
             # Check if we should publish with updated timestamp
             if await self.position_service.should_post_portfolio(now):
-                await self.position_service.publish_portfolio(merged_positions, now)
+                await self.position_service.publish_portfolio(
+                    self.position_service.merged_positions, now
+                )
 
             # Now publish trades
             if new_trades:
+                if not await self.position_service.should_post_portfolio(now):
+                    await self.position_service.publish_portfolio(
+                        self.position_service.merged_positions, now
+                    )
                 logger.info(f"Publishing {len(new_trades)} trades.")
                 await self.trade_service.publish_trades(new_trades)
                 logger.info(f"Published {len(new_trades)} trades.")
