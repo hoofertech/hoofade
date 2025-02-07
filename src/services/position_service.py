@@ -8,7 +8,9 @@ from formatters.portfolio import PortfolioFormatter
 from sinks.base import MessageSink
 from models.position import Position
 from datetime import timezone
+from services.trade_processor import ProfitTaker
 import logging
+from services.trade_service import TradeService
 
 logger = logging.getLogger(__name__)
 
@@ -83,3 +85,86 @@ class PositionService:
         except Exception as e:
             logger.error(f"Error saving portfolio post: {str(e)}")
             await self.db.rollback()
+
+    async def apply_profit_taker(
+        self, profit_taker: ProfitTaker, positions: List[Position]
+    ) -> bool:
+        """
+        Apply a profit taker to the portfolio positions.
+        Returns True if successfully applied.
+        """
+        # Find matching position
+        for position in positions:
+            if position.instrument == profit_taker.instrument:
+                # Calculate the matched quantity
+                matched_quantity = min(
+                    abs(position.quantity),
+                    min(
+                        abs(profit_taker.buy_trade.quantity),
+                        abs(profit_taker.sell_trade.quantity),
+                    ),
+                )
+
+                # Update position quantity
+                if position.is_short:
+                    position.quantity += matched_quantity
+                else:
+                    position.quantity -= matched_quantity
+
+                # If position is fully closed, remove it
+                if position.quantity == 0:
+                    positions.remove(position)
+                    logger.info(
+                        f"Removed closed position for {position.instrument.symbol}"
+                    )
+                else:
+                    logger.info(
+                        f"Updated position quantity for {position.instrument.symbol} "
+                        f"from {position.quantity + matched_quantity} to {position.quantity}"
+                    )
+                return True
+
+        logger.debug(f"No matching position found for {profit_taker.instrument.symbol}")
+        return False
+
+    async def get_merged_positions(self) -> List[Position]:
+        """Get merged positions from all sources."""
+        positions_by_key = {}  # Store merged positions by instrument key
+
+        # Get and merge positions from all sources
+        for source_id, source in self.sources.items():
+            logger.debug(f"Processing positions from {source.source_id}")
+            for position in source.get_positions():
+                # Skip positions with zero quantity
+                if position.quantity == 0:
+                    continue
+
+                key = TradeService.get_position_key(position)
+                if key in positions_by_key:
+                    # Merge with existing position
+                    existing = positions_by_key[key]
+                    total_quantity = existing.quantity + position.quantity
+
+                    # Skip if merged position would have zero quantity
+                    if total_quantity == 0:
+                        del positions_by_key[key]
+                        continue
+
+                    # Calculate weighted average cost basis
+                    weighted_cost = (
+                        existing.quantity * existing.cost_basis
+                        + position.quantity * position.cost_basis
+                    ) / total_quantity
+
+                    positions_by_key[key] = Position(
+                        instrument=position.instrument,
+                        quantity=total_quantity,
+                        cost_basis=weighted_cost,
+                        market_price=position.market_price,  # Use latest mark price
+                        report_time=position.report_time,
+                    )
+                else:
+                    # New position
+                    positions_by_key[key] = position
+
+        return list(positions_by_key.values())

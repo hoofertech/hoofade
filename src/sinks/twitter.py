@@ -34,12 +34,16 @@ class TwitterSink(MessageSink):
         now = datetime.now(timezone.utc)
         logger.info(f"Checking if we can publish: {message_type}")
         if message_type == "portfolio":
-            logger.info(f"Checking if we can publish portfolio: {now - self.last_portfolio_publish}")
+            logger.info(
+                f"Checking if we can publish portfolio: {now - self.last_portfolio_publish}"
+            )
             return (
                 now - self.last_portfolio_publish
             ).total_seconds() >= 1800  # 30 minutes
         elif message_type == "trade_batch":
-            logger.info(f"Checking if we can publish trade batch: {now - self.last_trade_publish}")
+            logger.info(
+                f"Checking if we can publish trade batch: {now - self.last_trade_publish}"
+            )
             return (now - self.last_trade_publish).total_seconds() >= 300  # 5 minutes
         return True  # For other message types
 

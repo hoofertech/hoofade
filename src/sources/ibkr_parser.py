@@ -106,44 +106,61 @@ class FlexReportParser:
 
     @staticmethod
     def parse_positions(
-        report: FlexReport | Dict[str, Any] | None,
+        report: Union[FlexReport, Dict[str, Any], None],
     ) -> List[Position]:
-        data = (
+        """Parse positions from DataFrame or list of dicts"""
+        if report is None:
+            return []
+
+        # Get position data
+        data: Union[pd.DataFrame, List[Dict[str, Any]], None] = (
             report.df("OpenPosition")
             if isinstance(report, FlexReport)
-            else report["OpenPosition"]
+            else report.get("OpenPosition")
         )
         """Parse positions from DataFrame or list of dicts"""
         if data is None:
             return []
 
-        stmt = (
+        # Get statement data
+        stmt: Union[pd.DataFrame, List[Dict[str, Any]], None] = (
             report.df("FlexStatement")
             if isinstance(report, FlexReport)
-            else report.get("FlexStatement")
+            else report.get("FlexStatement", [])
         )
-        stmt_list = []
+
+        # Convert statement to list if needed
+        stmt_list: List[Dict[str, Any]] = []
         if isinstance(stmt, pd.DataFrame) and not stmt.empty:
             stmt_list = stmt.to_dict("records")
-        else:
+        elif isinstance(stmt, list):
             stmt_list = stmt
-        report_time = max(stmt_list, key=lambda x: x.get("whenGenerated")).get(
-            "whenGenerated"
-        )
-        logger.info(f"Report time: {report_time}")
-        if report_time:
-            report_time = datetime.strptime(report_time, "%Y%m%d;%H%M%S").replace(
-                tzinfo=timezone.utc
-            )
 
+        # Get report time from statements
+        report_time: Optional[datetime] = None
+        if stmt_list:
+            try:
+                latest_stmt = max(
+                    stmt_list, key=lambda x: str(x.get("whenGenerated", ""))
+                )
+                when_generated = latest_stmt.get("whenGenerated")
+                if when_generated:
+                    report_time = datetime.strptime(
+                        str(when_generated), "%Y%m%d;%H%M%S"
+                    ).replace(tzinfo=timezone.utc)
+            except (ValueError, KeyError) as e:
+                logger.error(f"Error parsing report time: {e}")
+
+        # Convert position data to list if needed
+        data_list: List[Dict[str, Any]] = []
         if isinstance(data, pd.DataFrame):
-            if data.empty:
-                return []
-            data_list = data.to_dict("records")
-        else:
+            if not data.empty:
+                data_list = data.to_dict("records")
+        elif isinstance(data, list):
             data_list = data
 
-        positions = []
+        # Parse positions
+        positions: List[Position] = []
         for item in data_list:
             try:
                 item_dict = FlexReportParser._row_to_dict(item)
@@ -157,7 +174,9 @@ class FlexReportParser:
                         quantity=Decimal(str(item_dict.get("position", "0"))),
                         cost_basis=Decimal(str(item_dict.get("costBasisPrice", "0"))),
                         market_price=Decimal(str(item_dict.get("markPrice", "0"))),
-                        report_time=report_time,
+                        report_time=report_time
+                        if report_time
+                        else datetime.now(timezone.utc),
                     )
                 )
             except Exception as e:

@@ -15,6 +15,7 @@ from services.trade_processor import (
     ProfitTaker,
 )
 import logging
+from typing import Tuple
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ class TradeService:
         self.formatter = formatter
         self.position_service = position_service
 
-    async def get_new_trades(self) -> List[ProcessingResult]:
+    async def get_new_trades(self) -> Tuple[List[ProcessingResult], List[ProfitTaker]]:
         """Get and process new trades from all sources."""
         all_trades = []
         saved_trades = []
@@ -51,7 +52,7 @@ class TradeService:
                 if position.quantity == 0:
                     continue
 
-                key = self._get_position_key(position)
+                key = TradeService.get_position_key(position)
                 if key in positions_by_key:
                     # Merge with existing position
                     existing = positions_by_key[key]
@@ -87,7 +88,7 @@ class TradeService:
                     all_trades.append(trade)
 
         if not all_trades:
-            return []
+            return [], []
 
         # Use merged positions for processing
         merged_positions = list(positions_by_key.values())
@@ -96,9 +97,10 @@ class TradeService:
         processor = TradeProcessor(merged_positions)
         processed_results, portfolio_matches = processor.process_trades(all_trades)
 
-        return processed_results
+        return processed_results, portfolio_matches
 
-    def _get_position_key(self, position: Position) -> str:
+    @staticmethod
+    def get_position_key(position: Position) -> str:
         """Generate a unique key for a position based on instrument details."""
         instrument = position.instrument
         if instrument.type == InstrumentType.OPTION and instrument.option_details:
@@ -223,45 +225,3 @@ class TradeService:
             logger.error(f"Error saving trade: {str(e)}")
             await self.db.rollback()
             raise e
-
-    async def get_merged_positions(self) -> List[Position]:
-        """Get merged positions from all sources."""
-        positions_by_key = {}  # Store merged positions by instrument key
-
-        # Get and merge positions from all sources
-        for source_id, source in self.sources.items():
-            logger.debug(f"Processing positions from {source.source_id}")
-            for position in source.get_positions():
-                # Skip positions with zero quantity
-                if position.quantity == 0:
-                    continue
-
-                key = self._get_position_key(position)
-                if key in positions_by_key:
-                    # Merge with existing position
-                    existing = positions_by_key[key]
-                    total_quantity = existing.quantity + position.quantity
-
-                    # Skip if merged position would have zero quantity
-                    if total_quantity == 0:
-                        del positions_by_key[key]
-                        continue
-
-                    # Calculate weighted average cost basis
-                    weighted_cost = (
-                        existing.quantity * existing.cost_basis
-                        + position.quantity * position.cost_basis
-                    ) / total_quantity
-
-                    positions_by_key[key] = Position(
-                        instrument=position.instrument,
-                        quantity=total_quantity,
-                        cost_basis=weighted_cost,
-                        market_price=position.market_price,  # Use latest mark price
-                        report_time=position.report_time,
-                    )
-                else:
-                    # New position
-                    positions_by_key[key] = position
-
-        return list(positions_by_key.values())
