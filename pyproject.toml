@@ -70,3 +70,10 @@ include = '\.pyi?$'
 [tool.isort]
 profile = "black"
 multi_line_output = 3
+
+[tool.ruff]
+line-length = 99
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]  # E for pycodestyle, F for Pyflakes, I for isort
+ignore = ["E203", "E501"]
