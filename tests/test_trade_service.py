@@ -1,12 +1,14 @@
-import pytest
+import logging
 from datetime import timedelta
 from decimal import Decimal
-from services.trade_service import TradeService
-from models.trade import Trade
+
+import pytest
+
 from formatters.trade import TradeFormatter
-from services.trade_processor import ProfitTaker
+from models.trade import Trade
 from services.position_service import PositionService
-import logging
+from services.trade_processor import ProfitTaker
+from services.trade_service import TradeService
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +40,7 @@ async def test_get_new_trades(trade_service, sample_trade, db_session):
 
 
 @pytest.mark.asyncio
-async def test_get_new_trades_with_matching(
-    trade_service, sample_trade, matching_trade
-):
+async def test_get_new_trades_with_matching(trade_service, sample_trade, matching_trade):
     # Add both trades
     trade_service.sources["test"].trades = [sample_trade, matching_trade]
 

@@ -1,24 +1,34 @@
 import asyncio
 import logging
-import uvicorn
 import threading
-from formatters.trade import TradeFormatter
+from datetime import datetime, timezone
 from typing import Dict
-from models.db_trade import Base
-from sources.ibkr import IBKRSource
-from sinks.twitter import TwitterSink
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.ext.asyncio import async_sessionmaker
-from config import get_source_configs, get_sink_configs, get_db_url, get_web_config
-from sources.base import TradeSource
-from sinks.base import MessageSink
+
+import uvicorn
 from dotenv import load_dotenv
-from sources.ibkr_json_source import JsonSource
-from sinks.cli import CLISink
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+
+from config import (
+    get_db_url,
+    get_sink_configs,
+    get_source_configs,
+    get_web_config,
+)
+from formatters.trade import TradeFormatter
+from models.db_trade import Base
 from services.position_service import PositionService
 from services.trade_service import TradeService
-from datetime import datetime, timezone
+from sinks.base import MessageSink
+from sinks.cli import CLISink
 from sinks.database import DatabaseSink
+from sinks.twitter import TwitterSink
+from sources.base import TradeSource
+from sources.ibkr import IBKRSource
+from sources.ibkr_json_source import JsonSource
 from web.server import app, init_app
 
 logger = logging.getLogger(__name__)
@@ -70,9 +80,7 @@ def create_sinks(
         elif config["type"] == "cli":
             sinks[sink_id] = CLISink(sink_id=config["sink_id"])
         elif config["type"] == "database":
-            sinks[sink_id] = DatabaseSink(
-                sink_id=config["sink_id"], async_session=async_session
-            )
+            sinks[sink_id] = DatabaseSink(sink_id=config["sink_id"], async_session=async_session)
 
     return sinks
 
@@ -86,9 +94,7 @@ class TradePublisher:
         formatter: TradeFormatter,
     ):
         self.position_service = PositionService(sources, sinks, db)
-        self.trade_service = TradeService(
-            sources, sinks, db, formatter, self.position_service
-        )
+        self.trade_service = TradeService(sources, sinks, db, formatter, self.position_service)
         self.sources = sources
 
     async def run(self):
@@ -145,9 +151,7 @@ class TradePublisher:
                 logger.info(f">>> No new trades: {now}")
 
             if portfolio_profit_takers:
-                logger.info(
-                    f"Applying {len(portfolio_profit_takers)} portfolio profit takers"
-                )
+                logger.info(f"Applying {len(portfolio_profit_takers)} portfolio profit takers")
                 for profit_taker in portfolio_profit_takers:
                     if await self.position_service.apply_profit_taker(
                         profit_taker, self.position_service.merged_positions
@@ -240,9 +244,7 @@ async def main():
     db = db_maker()
 
     # Start web server in a separate thread
-    web_thread = threading.Thread(
-        target=start_web_server, args=(db_maker,), daemon=True
-    )
+    web_thread = threading.Thread(target=start_web_server, args=(db_maker,), daemon=True)
     web_thread.start()
 
     # Run trade publisher in main thread

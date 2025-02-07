@@ -1,5 +1,7 @@
-import pytest
 from datetime import timedelta
+
+import pytest
+
 from services.position_service import PositionService
 
 
@@ -15,9 +17,7 @@ async def test_publish_portfolio(
     position_service, mock_source, mock_sink, sample_positions, test_timestamp
 ):
     mock_source.positions = sample_positions
-    await position_service.publish_portfolio(
-        mock_source.get_positions(), test_timestamp
-    )
+    await position_service.publish_portfolio(mock_source.get_positions(), test_timestamp)
 
     assert len(mock_sink.messages) == 1
     message = mock_sink.messages[0]
@@ -33,9 +33,7 @@ async def test_publish_portfolio(
 async def test_should_post_portfolio(position_service, mock_source, test_timestamp):
     # Should post if never posted
     assert await position_service.should_post_portfolio(test_timestamp) is True
-    await position_service.publish_portfolio(
-        mock_source.get_positions(), test_timestamp
-    )
+    await position_service.publish_portfolio(mock_source.get_positions(), test_timestamp)
 
     # Should not post if already posted today
     an_hour_later = test_timestamp + timedelta(hours=1)

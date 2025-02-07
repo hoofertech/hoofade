@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import List
-from models.trade import Trade
+
 from models.position import Position
+from models.trade import Trade
 
 
 class TradeSource(ABC):

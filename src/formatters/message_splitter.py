@@ -1,4 +1,5 @@
 from typing import List
+
 from models.message import Message
 
 
@@ -57,9 +58,7 @@ class MessageSplitter:
             if is_last_tweet:
                 position_marker = f" ({position}/{total_tweets})"
                 remaining_space = (
-                    MessageSplitter.MAX_TWEET_LENGTH
-                    - len(tweet_content)
-                    - len(position_marker)
+                    MessageSplitter.MAX_TWEET_LENGTH - len(tweet_content) - len(position_marker)
                 )
 
                 # Add repo link if there's space
@@ -69,9 +68,7 @@ class MessageSplitter:
             # Add thread markers
             if total_tweets > 1:
                 if position == 1:
-                    tweet_content += (
-                        f"{MessageSplitter.THREAD_MARKER} (1/{total_tweets})"
-                    )
+                    tweet_content += f"{MessageSplitter.THREAD_MARKER} (1/{total_tweets})"
                 else:
                     tweet_content += f" ({position}/{total_tweets})"
 

@@ -1,9 +1,11 @@
-import pytest
 from datetime import date
 from decimal import Decimal
+
+import pytest
+
 from formatters.trade import TradeFormatter
-from models.trade import Trade
 from models.instrument import Instrument, OptionType
+from models.trade import Trade
 
 
 @pytest.fixture

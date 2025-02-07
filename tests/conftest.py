@@ -1,16 +1,18 @@
-import pytest
-from datetime import datetime, timezone, timedelta, date
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from models.trade import Trade
+from typing import List
+
+import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from models.db_trade import Base
 from models.instrument import Instrument, OptionType
 from models.message import Message
-from sources.base import TradeSource
+from models.position import Position
+from models.trade import Trade
 from sinks.base import MessageSink
 from sinks.twitter import TwitterSink
-from typing import List
-from models.position import Position
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from models.db_trade import Base
+from sources.base import TradeSource
 
 
 class MockTradeSource(TradeSource):

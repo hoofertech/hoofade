@@ -1,6 +1,8 @@
-import pytest
 from datetime import datetime, timezone
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
+
+import pytest
+
 from models.message import Message
 from sinks.cli import CLISink
 
@@ -12,7 +14,9 @@ async def test_twitter_sink_publish_success(twitter_sink):
         twitter_sink.client = mock_client
 
         message = Message(
-            content="Test message", timestamp=datetime.now(timezone.utc), metadata={}
+            content="Test message",
+            timestamp=datetime.now(timezone.utc),
+            metadata={},
         )
 
         assert await twitter_sink.publish(message)
@@ -29,7 +33,9 @@ async def test_twitter_sink_publish_failure(twitter_sink):
         twitter_sink.client = mock_client
 
         message = Message(
-            content="Test message", timestamp=datetime.now(timezone.utc), metadata={}
+            content="Test message",
+            timestamp=datetime.now(timezone.utc),
+            metadata={},
         )
 
         assert not await twitter_sink.publish(message)
@@ -71,7 +77,9 @@ def cli_sink():
 @pytest.mark.asyncio
 async def test_cli_sink_publish_success(cli_sink, capsys):
     message = Message(
-        content="Test CLI message", timestamp=datetime.now(timezone.utc), metadata={}
+        content="Test CLI message",
+        timestamp=datetime.now(timezone.utc),
+        metadata={},
     )
 
     assert await cli_sink.publish(message)

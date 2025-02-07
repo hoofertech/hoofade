@@ -1,11 +1,12 @@
-from dataclasses import dataclass
-from decimal import Decimal
-from typing import List, Dict, Union, Tuple
-from datetime import datetime
-from models.trade import Trade
-from models.position import Position
-from models.instrument import Instrument, InstrumentType
 import logging
+from dataclasses import dataclass
+from datetime import datetime
+from decimal import Decimal
+from typing import Dict, List, Tuple, Union
+
+from models.instrument import Instrument, InstrumentType
+from models.position import Position
+from models.trade import Trade
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +75,7 @@ class TradeProcessor:
         combined_trades = self._combine_trades(grouped_trades)
 
         # 3. Generate profit takers and get remaining trades
-        profit_takers, remaining_after_profit = self._generate_profit_takers(
-            combined_trades
-        )
+        profit_takers, remaining_after_profit = self._generate_profit_takers(combined_trades)
 
         results.extend(profit_takers)
 
@@ -122,7 +121,8 @@ class TradeProcessor:
         """Group trades by complete instrument details"""
         grouped = {}
         for trade in sorted(
-            trades, key=lambda t: (t.instrument.symbol, -t.timestamp.timestamp())
+            trades,
+            key=lambda t: (t.instrument.symbol, -t.timestamp.timestamp()),
         ):
             key = self._get_instrument_key(trade)
             if key not in grouped:
@@ -173,9 +173,7 @@ class TradeProcessor:
             total_value += quantity * trade.price
             latest_timestamp = max(latest_timestamp, trade.timestamp)
 
-        weighted_price = (
-            total_value / total_quantity if total_quantity > 0 else Decimal("0")
-        )
+        weighted_price = total_value / total_quantity if total_quantity > 0 else Decimal("0")
 
         return CombinedTrade(
             instrument=trades[0].instrument,
@@ -195,12 +193,8 @@ class TradeProcessor:
     ) -> ProfitTaker:
         """Calculate profit/loss for a pair of matched trades"""
         # Determine which trade came first chronologically
-        first_trade = (
-            buy_trade if buy_trade.timestamp < sell_trade.timestamp else sell_trade
-        )
-        second_trade = (
-            sell_trade if buy_trade.timestamp < sell_trade.timestamp else buy_trade
-        )
+        first_trade = buy_trade if buy_trade.timestamp < sell_trade.timestamp else sell_trade
+        second_trade = sell_trade if buy_trade.timestamp < sell_trade.timestamp else buy_trade
 
         # Calculate profit based on chronological order
         price_diff = second_trade.weighted_price - first_trade.weighted_price
@@ -254,24 +248,18 @@ class TradeProcessor:
             matched_sell = self._create_partial_combined_trade(sell, matched_quantity)
 
             profit_takers.append(
-                self._calculate_profit_taker(
-                    matched_buy, matched_sell, matched_quantity
-                )
+                self._calculate_profit_taker(matched_buy, matched_sell, matched_quantity)
             )
 
             # Handle remaining quantities
             remaining_trades = []
             if buy.quantity > matched_quantity:
                 remaining_trades.append(
-                    self._create_partial_combined_trade(
-                        buy, buy.quantity - matched_quantity
-                    )
+                    self._create_partial_combined_trade(buy, buy.quantity - matched_quantity)
                 )
             if sell.quantity > matched_quantity:
                 remaining_trades.append(
-                    self._create_partial_combined_trade(
-                        sell, sell.quantity - matched_quantity
-                    )
+                    self._create_partial_combined_trade(sell, sell.quantity - matched_quantity)
                 )
 
             if remaining_trades:
@@ -312,9 +300,7 @@ class TradeProcessor:
                 matched_trades.append(partial_trade)
 
         # Calculate correct weighted price based on matched trades
-        weighted_price = (
-            total_value / target_quantity if target_quantity > 0 else Decimal("0")
-        )
+        weighted_price = total_value / target_quantity if target_quantity > 0 else Decimal("0")
 
         return CombinedTrade(
             instrument=trade.instrument,
@@ -360,18 +346,12 @@ class TradeProcessor:
                     )
 
                     # Create partial trade for matched portion
-                    matched_trade = self._create_partial_combined_trade(
-                        trade, matched_quantity
-                    )
+                    matched_trade = self._create_partial_combined_trade(trade, matched_quantity)
 
                     portfolio_matches.append(
                         self._calculate_profit_taker(
-                            buy_trade=position_trade
-                            if not position.is_short
-                            else matched_trade,
-                            sell_trade=matched_trade
-                            if trade.side == "SELL"
-                            else position_trade,
+                            buy_trade=position_trade if not position.is_short else matched_trade,
+                            sell_trade=matched_trade if trade.side == "SELL" else position_trade,
                             matched_quantity=matched_quantity,
                         )
                     )

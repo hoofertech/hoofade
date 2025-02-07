@@ -1,8 +1,9 @@
 from dataclasses import dataclass
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
+from typing import Any, Dict
+
 from models.instrument import Instrument, InstrumentType
-from typing import Dict, Any
 
 
 @dataclass
@@ -17,10 +18,7 @@ class Position:
 
     def __post_init__(self):
         """Validate position data after initialization"""
-        if (
-            self.instrument.type == InstrumentType.OPTION
-            and not self.instrument.option_details
-        ):
+        if self.instrument.type == InstrumentType.OPTION and not self.instrument.option_details:
             raise ValueError("Option positions must include option details")
 
     @property

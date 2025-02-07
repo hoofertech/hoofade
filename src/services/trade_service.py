@@ -1,23 +1,23 @@
-from typing import List, Dict, Optional
+import logging
 from datetime import datetime, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Dict, List, Optional, Tuple
+
 from sqlalchemy import select, update
-from models.trade import Trade
-from models.message import Message
-from models.db_trade import DBTrade
-from sources.base import TradeSource
-from sinks.base import MessageSink
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from formatters.trade import TradeFormatter
-from models.position import Position, InstrumentType
+from models.db_trade import DBTrade
+from models.message import Message
+from models.position import Position
+from models.trade import Trade
+from services.position_service import PositionService
 from services.trade_processor import (
-    TradeProcessor,
     ProcessingResult,
     ProfitTaker,
+    TradeProcessor,
 )
-from services.position_service import PositionService
-import logging
-from typing import Tuple
-
+from sinks.base import MessageSink
+from sources.base import TradeSource
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,9 @@ class TradeService:
         self.formatter = formatter
         self.position_service = position_service
 
-    async def get_new_trades(self) -> Tuple[List[ProcessingResult], List[ProfitTaker]]:
+    async def get_new_trades(
+        self,
+    ) -> Tuple[List[ProcessingResult], List[ProfitTaker]]:
         """Get and process new trades from all sources."""
         all_trades = []
         saved_trades = []
@@ -60,9 +62,7 @@ class TradeService:
 
         return processed_results, portfolio_matches
 
-    def _apply_portfolio_match(
-        self, match: ProfitTaker, positions: List[Position]
-    ) -> bool:
+    def _apply_portfolio_match(self, match: ProfitTaker, positions: List[Position]) -> bool:
         """
         Apply a portfolio match to a list of positions.
         Returns True if match was successfully applied.
@@ -77,14 +77,10 @@ class TradeService:
         # Determine which side is from position (has no trades)
         if not match.buy_trade.trades:
             position_trade = match.buy_trade
-            logger.debug(
-                f"Buy side is from position: {position_trade.instrument.symbol}"
-            )
+            logger.debug(f"Buy side is from position: {position_trade.instrument.symbol}")
         elif not match.sell_trade.trades:
             position_trade = match.sell_trade
-            logger.debug(
-                f"Sell side is from position: {position_trade.instrument.symbol}"
-            )
+            logger.debug(f"Sell side is from position: {position_trade.instrument.symbol}")
         else:
             logger.debug("No position trades found in profit taker")
             return False
@@ -145,9 +141,7 @@ class TradeService:
         result = await self.db.execute(query)
         return result.scalar_one_or_none() is not None
 
-    async def _save_trade(
-        self, trade: Trade, matching_trade: Optional[DBTrade] = None
-    ) -> None:
+    async def _save_trade(self, trade: Trade, matching_trade: Optional[DBTrade] = None) -> None:
         """Save a trade to the database and update matching trade if exists."""
         try:
             # Convert domain trade to DB model
@@ -158,9 +152,7 @@ class TradeService:
                 # Update both trades' matched status in a single transaction
                 stmt = (
                     update(DBTrade)
-                    .where(
-                        DBTrade.trade_id.in_([trade.trade_id, matching_trade.trade_id])
-                    )
+                    .where(DBTrade.trade_id.in_([trade.trade_id, matching_trade.trade_id]))
                     .values(matched=True)
                 )
                 await self.db.execute(stmt)

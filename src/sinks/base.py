@@ -8,6 +8,7 @@ except RuntimeError:
     asyncio.set_event_loop(_event_loop)
 
 from abc import ABC, abstractmethod
+
 from models.message import Message
 
 

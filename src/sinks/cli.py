@@ -1,7 +1,9 @@
 import logging
-from .base import MessageSink
-from models.message import Message
+
 from formatters.message_splitter import MessageSplitter
+from models.message import Message
+
+from .base import MessageSink
 
 logger = logging.getLogger(__name__)
 

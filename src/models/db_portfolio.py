@@ -1,6 +1,8 @@
-from sqlalchemy import Column, String, DateTime
-from sqlalchemy.types import TypeDecorator
 import datetime
+
+from sqlalchemy import Column, DateTime, String
+from sqlalchemy.types import TypeDecorator
+
 from .db_trade import Base
 
 

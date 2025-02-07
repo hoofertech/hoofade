@@ -1,11 +1,13 @@
-import pytest
-from datetime import timedelta, date
+import logging
+from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import Mock, patch
+
 import pandas as pd
-from sources.ibkr import IBKRSource
+import pytest
+
 from models.instrument import InstrumentType, OptionType
-import logging
+from sources.ibkr import IBKRSource
 
 logger = logging.getLogger(__name__)
 
@@ -141,9 +143,7 @@ def mock_flex_report_invalid_trades(test_timestamp):
             "symbol": ["AAPL"],
             "quantity": ["invalid"],  # Invalid quantity
             "price": [150.25],
-            "dateTime": [
-                (test_timestamp - timedelta(minutes=15)).strftime("%Y%m%d;%H%M%S")
-            ],
+            "dateTime": [(test_timestamp - timedelta(minutes=15)).strftime("%Y%m%d;%H%M%S")],
             "tradeID": ["test-trade-id"],
             "putCall": [None],
             "strike": [None],
@@ -187,9 +187,7 @@ def mock_flex_report_invalid_options(test_timestamp):
             "symbol": ["AAPL"],
             "quantity": [5],
             "price": [3.50],
-            "dateTime": [
-                (test_timestamp - timedelta(minutes=15)).strftime("%Y%m%d;%H%M%S")
-            ],
+            "dateTime": [(test_timestamp - timedelta(minutes=15)).strftime("%Y%m%d;%H%M%S")],
             "tradeID": ["test-option-id"],
             "putCall": ["C"],
             "strike": ["invalid"],  # Invalid strike price
@@ -290,9 +288,7 @@ async def test_ibkr_source_empty_trades(mock_empty_flex_report, test_timestamp):
 
 
 @pytest.mark.asyncio
-async def test_ibkr_source_invalid_trade_data(
-    mock_flex_report_invalid_trades, test_timestamp
-):
+async def test_ibkr_source_invalid_trade_data(mock_flex_report_invalid_trades, test_timestamp):
     source = IBKRSource(
         source_id="test-source",
         portfolio_token="test-token",
@@ -306,9 +302,7 @@ async def test_ibkr_source_invalid_trade_data(
 
 
 @pytest.mark.asyncio
-async def test_ibkr_source_invalid_option_data(
-    mock_flex_report_invalid_options, test_timestamp
-):
+async def test_ibkr_source_invalid_option_data(mock_flex_report_invalid_options, test_timestamp):
     source = IBKRSource(
         source_id="test-source",
         portfolio_token="test-token",

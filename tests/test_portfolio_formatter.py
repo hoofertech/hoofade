@@ -1,10 +1,12 @@
-import pytest
-from datetime import datetime, timezone, date
-from decimal import Decimal
-from models.position import Position
-from models.instrument import Instrument, OptionType
-from formatters.portfolio import PortfolioFormatter
 import logging
+from datetime import date, datetime, timezone
+from decimal import Decimal
+
+import pytest
+
+from formatters.portfolio import PortfolioFormatter
+from models.instrument import Instrument, OptionType
+from models.position import Position
 
 logger = logging.getLogger(__name__)
 

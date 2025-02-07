@@ -1,16 +1,18 @@
-from typing import Dict, Optional, cast, List
-from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from models.db_portfolio import DBPortfolio
-from sources.base import TradeSource
-from formatters.portfolio import PortfolioFormatter
-from sinks.base import MessageSink
-from models.position import Position
-from datetime import timezone
-from services.trade_processor import ProfitTaker
 import logging
+from datetime import datetime, timezone
+from typing import Dict, List, Optional, cast
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from formatters.portfolio import PortfolioFormatter
+from models.db_portfolio import DBPortfolio
 from models.instrument import InstrumentType
+from models.position import Position
+from services.trade_processor import ProfitTaker
+from sinks.base import MessageSink
+from sources.base import TradeSource
+
 logger = logging.getLogger(__name__)
 
 
@@ -115,9 +117,7 @@ class PositionService:
                 # If position is fully closed, remove it
                 if position.quantity == 0:
                     positions.remove(position)
-                    logger.info(
-                        f"Removed closed position for {position.instrument.symbol}"
-                    )
+                    logger.info(f"Removed closed position for {position.instrument.symbol}")
                 else:
                     new_positions.append(position)
                     logger.info(
@@ -170,7 +170,6 @@ class PositionService:
                     positions_by_key[key] = position
 
         return list(positions_by_key.values())
-
 
     @staticmethod
     def get_position_key(position: Position) -> str:

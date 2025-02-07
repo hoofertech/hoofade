@@ -1,13 +1,16 @@
+import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime
-import logging
-from ib_insync import FlexReport
 from pathlib import Path
-import json
-from .ibkr_parser import FlexReportParser
 from typing import AsyncIterator
+
+from ib_insync import FlexReport
+
 from models.position import Position
 from models.trade import Trade
+
+from .ibkr_parser import FlexReportParser
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +95,8 @@ class FlexClient:
         """Get trade executions"""
         try:
             report = FlexReport(
-                token=self.config.trades.token, queryId=self.config.trades.query_id
+                token=self.config.trades.token,
+                queryId=self.config.trades.query_id,
             )
             report.download(self.config.trades.token, self.config.trades.query_id)
             if not report.data:
@@ -100,9 +104,7 @@ class FlexClient:
                 return
 
             self._save_report(report, "trades")
-            for exec in self.parser.parse_executions_from_df(
-                report.df("TradeConfirm"), source_id
-            ):
+            for exec in self.parser.parse_executions_from_df(report.df("TradeConfirm"), source_id):
                 yield exec
         except Exception as e:
             logger.error(f"Error fetching executions: {str(e)}")

@@ -1,7 +1,9 @@
-from formatters.trade import TradeFormatter
-import pytest
-from models.trade import Trade
 from decimal import Decimal
+
+import pytest
+
+from formatters.trade import TradeFormatter
+from models.trade import Trade
 
 
 @pytest.mark.asyncio

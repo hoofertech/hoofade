@@ -1,10 +1,13 @@
-import tweepy
 import logging
-from typing import Optional
-from .base import MessageSink
-from models.message import Message
-from formatters.message_splitter import MessageSplitter
 from datetime import datetime, timezone
+from typing import Optional
+
+import tweepy
+
+from formatters.message_splitter import MessageSplitter
+from models.message import Message
+
+from .base import MessageSink
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +40,9 @@ class TwitterSink(MessageSink):
             logger.info(
                 f"Checking if we can publish portfolio: {now - self.last_portfolio_publish}"
             )
-            return (
-                now - self.last_portfolio_publish
-            ).total_seconds() >= 1800  # 30 minutes
+            return (now - self.last_portfolio_publish).total_seconds() >= 1800  # 30 minutes
         elif message_type == "trade_batch":
-            logger.info(
-                f"Checking if we can publish trade batch: {now - self.last_trade_publish}"
-            )
+            logger.info(f"Checking if we can publish trade batch: {now - self.last_trade_publish}")
             return (now - self.last_trade_publish).total_seconds() >= 300  # 5 minutes
         return True  # For other message types
 
@@ -60,7 +59,8 @@ class TwitterSink(MessageSink):
                 logger.info(f"Publishing tweet: {tweet.content}")
                 try:
                     response = self.client.create_tweet(
-                        text=tweet.content, in_reply_to_tweet_id=previous_tweet_id
+                        text=tweet.content,
+                        in_reply_to_tweet_id=previous_tweet_id,
                     )
                     logger.info(f"Response: {response}")
                     # Tweepy Response object contains a data dict with tweet info

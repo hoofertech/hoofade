@@ -1,9 +1,11 @@
-import pytest
-from pathlib import Path
-from decimal import Decimal
-from sources.ibkr_json_source import JsonSource
-from models.instrument import InstrumentType, OptionType
 from datetime import date
+from decimal import Decimal
+from pathlib import Path
+
+import pytest
+
+from models.instrument import InstrumentType, OptionType
+from sources.ibkr_json_source import JsonSource
 
 
 @pytest.fixture

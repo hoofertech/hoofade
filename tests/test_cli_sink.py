@@ -1,12 +1,14 @@
-import pytest
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
-from models.trade import Trade
+from pathlib import Path
+
+import pytest
+
 from formatters.trade import TradeFormatter
+from models.trade import Trade
 from sinks.cli import CLISink
 from sources.ibkr_json_source import JsonSource
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

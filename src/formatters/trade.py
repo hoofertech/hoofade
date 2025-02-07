@@ -1,13 +1,16 @@
-from typing import Union, List
-from models.trade import Trade
-from models.message import Message
-from models.instrument import Instrument, InstrumentType, OptionType
-from services.trade_processor import CombinedTrade, ProfitTaker
 import logging
-from decimal import Decimal
 from datetime import datetime
-from services.trade_processor import ProcessingResult
+from decimal import Decimal
+from typing import List, Union
 
+from models.instrument import Instrument, InstrumentType, OptionType
+from models.message import Message
+from models.trade import Trade
+from services.trade_processor import (
+    CombinedTrade,
+    ProcessingResult,
+    ProfitTaker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +54,7 @@ class TradeFormatter:
         pl_text = "PROFIT" if is_profit else "LOSS"
 
         win_rate = (
-            (self.profitable_trades / self.total_trades * 100)
-            if self.total_trades > 0
-            else 0
+            (self.profitable_trades / self.total_trades * 100) if self.total_trades > 0 else 0
         )
 
         content = [
@@ -131,14 +132,10 @@ class TradeFormatter:
         currency = profit_taker.currency
         currency_symbol = self._get_currency_symbol(currency)
 
-        symbol_text = self._format_instrument(
-            profit_taker.buy_trade.instrument, currency_symbol
-        )
+        symbol_text = self._format_instrument(profit_taker.buy_trade.instrument, currency_symbol)
 
         # Calculate padding for alignment
-        quantity = min(
-            profit_taker.buy_trade.quantity, profit_taker.sell_trade.quantity
-        )
+        quantity = min(profit_taker.buy_trade.quantity, profit_taker.sell_trade.quantity)
         symbol_width = len(symbol_text)
         quantity_width = len(str(int(quantity)))
         pl_width = len(f"{abs(profit_taker.profit_percentage):.2f}")
@@ -153,9 +150,7 @@ class TradeFormatter:
 
         # Add component trades indented
         content.extend(
-            self._format_component_trades(
-                profit_taker.buy_trade, profit_taker.sell_trade
-            )
+            self._format_component_trades(profit_taker.buy_trade, profit_taker.sell_trade)
         )
 
         return Message(
@@ -187,30 +182,35 @@ class TradeFormatter:
         all_trades = []
 
         # Helper function to consolidate trades
-        def add_trades_consolidated(
-            trades: List[Trade], side: str, from_position: bool = False
-        ):
+        def add_trades_consolidated(trades: List[Trade], side: str, from_position: bool = False):
             if not trades:
                 return
 
             # Group trades by price and timestamp
             grouped = {}
             for trade in trades:
-                key = (trade.price, trade.timestamp if not from_position else None)
+                key = (
+                    trade.price,
+                    trade.timestamp if not from_position else None,
+                )
                 if key not in grouped:
                     grouped[key] = Decimal("0")
                 grouped[key] += abs(trade.quantity)
 
             # Add consolidated trades
             for (price, timestamp), total_quantity in grouped.items():
-                all_trades.append(
-                    (side, timestamp, total_quantity, price, from_position)
-                )
+                all_trades.append((side, timestamp, total_quantity, price, from_position))
 
         # Handle buy position
         if not buy_trade.trades:
             all_trades.append(
-                ("BUY", None, buy_trade.quantity, buy_trade.weighted_price, True)
+                (
+                    "BUY",
+                    None,
+                    buy_trade.quantity,
+                    buy_trade.weighted_price,
+                    True,
+                )
             )
         else:
             add_trades_consolidated(buy_trade.trades, "BUY")
@@ -218,7 +218,13 @@ class TradeFormatter:
         # Handle sell position
         if not sell_trade.trades:
             all_trades.append(
-                ("SELL", None, sell_trade.quantity, sell_trade.weighted_price, True)
+                (
+                    "SELL",
+                    None,
+                    sell_trade.quantity,
+                    sell_trade.weighted_price,
+                    True,
+                )
             )
         else:
             add_trades_consolidated(sell_trade.trades, "SELL")
@@ -227,9 +233,7 @@ class TradeFormatter:
         all_trades.sort(key=lambda x: (not x[4], x[1] or datetime.min))
 
         # Format each trade
-        for i, (side, timestamp, quantity, price, from_position) in enumerate(
-            all_trades
-        ):
+        for i, (side, timestamp, quantity, price, from_position) in enumerate(all_trades):
             prefix = "    └─ " if i == len(all_trades) - 1 else "    ├─ "
 
             if from_position:
@@ -254,9 +258,7 @@ class TradeFormatter:
         elif instrument.type == InstrumentType.OPTION and instrument.option_details:
             expiry = instrument.option_details.expiry.strftime("%d%b%y").upper()
             strike = instrument.option_details.strike
-            option_type = (
-                "C" if instrument.option_details.option_type == OptionType.CALL else "P"
-            )
+            option_type = "C" if instrument.option_details.option_type == OptionType.CALL else "P"
             return f"${instrument.symbol:<{max_symbol}} {expiry} {currency_symbol}{strike}{option_type}"
         return f"${instrument.symbol:<{max_symbol}}"
 

@@ -1,14 +1,13 @@
+from datetime import datetime
 from typing import List
-from models.position import Position
+
 from models.instrument import InstrumentType, OptionType
 from models.message import Message
-from datetime import datetime
+from models.position import Position
 
 
 class PortfolioFormatter:
-    def format_portfolio(
-        self, positions: List[Position], timestamp: datetime
-    ) -> Message:
+    def format_portfolio(self, positions: List[Position], timestamp: datetime) -> Message:
         if not positions:
             return Message(
                 content="No positions",
@@ -25,12 +24,8 @@ class PortfolioFormatter:
         content.append("")  # Empty line after title
 
         # Separate and sort positions
-        stock_positions = [
-            p for p in positions if p.instrument.type == InstrumentType.STOCK
-        ]
-        option_positions = [
-            p for p in positions if p.instrument.type == InstrumentType.OPTION
-        ]
+        stock_positions = [p for p in positions if p.instrument.type == InstrumentType.STOCK]
+        option_positions = [p for p in positions if p.instrument.type == InstrumentType.OPTION]
 
         # Sort stock positions by symbol
         stock_positions.sort(key=lambda p: p.instrument.symbol)
@@ -42,9 +37,7 @@ class PortfolioFormatter:
                 p.instrument.option_details.expiry
                 if p.instrument.option_details
                 else datetime.max.date(),
-                float(p.instrument.option_details.strike)
-                if p.instrument.option_details
-                else 0,
+                float(p.instrument.option_details.strike) if p.instrument.option_details else 0,
             )
         )
 
@@ -61,9 +54,7 @@ class PortfolioFormatter:
                     continue
 
                 currency = pos.instrument.currency
-                currency_symbol = (
-                    "$" if currency == "USD" else "€" if currency == "EUR" else "¥"
-                )
+                currency_symbol = "$" if currency == "USD" else "€" if currency == "EUR" else "¥"
                 sign = "-" if pos.quantity < 0 else "+"
 
                 content.append(
@@ -93,15 +84,11 @@ class PortfolioFormatter:
                     continue
 
                 currency = pos.instrument.currency
-                currency_symbol = (
-                    "$" if currency == "USD" else "€" if currency == "EUR" else "¥"
-                )
+                currency_symbol = "$" if currency == "USD" else "€" if currency == "EUR" else "¥"
                 strike = pos.instrument.option_details.strike
                 expiry = pos.instrument.option_details.expiry.strftime("%d%b%y").upper()
                 option_type = (
-                    "C"
-                    if pos.instrument.option_details.option_type == OptionType.CALL
-                    else "P"
+                    "C" if pos.instrument.option_details.option_type == OptionType.CALL else "P"
                 )
                 sign = "-" if pos.quantity < 0 else "+"
 

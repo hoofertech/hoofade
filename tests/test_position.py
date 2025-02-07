@@ -1,8 +1,15 @@
-import pytest
-from decimal import Decimal
-from models.position import Position
-from models.instrument import Instrument, InstrumentType, OptionDetails, OptionType
 from datetime import date
+from decimal import Decimal
+
+import pytest
+
+from models.instrument import (
+    Instrument,
+    InstrumentType,
+    OptionDetails,
+    OptionType,
+)
+from models.position import Position
 
 
 @pytest.fixture

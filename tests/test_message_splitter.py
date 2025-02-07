@@ -1,7 +1,8 @@
-from datetime import datetime, timezone
-from models.message import Message
-from formatters.message_splitter import MessageSplitter
 import logging
+from datetime import datetime, timezone
+
+from formatters.message_splitter import MessageSplitter
+from models.message import Message
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +18,7 @@ def test_short_message_no_split():
     logger.info(f"tweets: {tweets[0].content}")
     assert len(tweets) == 1
     assert (
-        tweets[0].content
-        == message.content + "\n\n🚀 Build yours: github.com/hoofertech/hoofade"
+        tweets[0].content == message.content + "\n\n🚀 Build yours: github.com/hoofertech/hoofade"
     )
     assert "🧵" not in tweets[0].content
 
@@ -34,13 +34,9 @@ def test_portfolio_message_split():
 
     # Add many option positions
     for i in range(20):
-        options.append(
-            f"$OPT{i:02d} {15 + i}JUN24 ${150 + i}C +{2 + i}@${3.50 + i:.2f}"
-        )
+        options.append(f"$OPT{i:02d} {15 + i}JUN24 ${150 + i}C +{2 + i}@${3.50 + i:.2f}")
 
-    content = (
-        "📊 Stocks:\n" + "\n".join(stocks) + "\n\n🎯 Options:\n" + "\n".join(options)
-    )
+    content = "📊 Stocks:\n" + "\n".join(stocks) + "\n\n🎯 Options:\n" + "\n".join(options)
 
     message = Message(
         content=content,

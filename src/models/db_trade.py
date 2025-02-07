@@ -1,10 +1,12 @@
-from sqlalchemy import Column, String, Numeric, DateTime, Boolean, Date, Enum
-from sqlalchemy.orm import declarative_base
-from models.trade import Trade
-from models.instrument import Instrument, InstrumentType, OptionType
+from datetime import date, datetime
 from decimal import Decimal
-from datetime import datetime, date
 from typing import cast
+
+from sqlalchemy import Boolean, Column, Date, DateTime, Enum, Numeric, String
+from sqlalchemy.orm import declarative_base
+
+from models.instrument import Instrument, InstrumentType, OptionType
+from models.trade import Trade
 
 Base = declarative_base()
 
@@ -26,9 +28,7 @@ class DBTrade(Base):
     matched: Column[bool] = Column(Boolean, default=False)
 
     # Option-specific fields
-    option_type: Column[str] = Column(
-        Enum(OptionType, name="option_type"), nullable=True
-    )
+    option_type: Column[str] = Column(Enum(OptionType, name="option_type"), nullable=True)
     strike: Column[Decimal] = Column(Numeric, nullable=True)
     expiry: Column[date] = Column(Date, nullable=True)
 
@@ -88,7 +88,9 @@ class DBTrade(Base):
 
             # Use setattr to avoid type checking issues with SQLAlchemy columns
             setattr(
-                db_trade, "option_type", trade.instrument.option_details.option_type
+                db_trade,
+                "option_type",
+                trade.instrument.option_details.option_type,
             )
             setattr(db_trade, "strike", trade.instrument.option_details.strike)
             setattr(db_trade, "expiry", trade.instrument.option_details.expiry)

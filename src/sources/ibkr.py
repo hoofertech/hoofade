@@ -1,12 +1,12 @@
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import List
+
+from models.position import Position
 from models.trade import Trade
 from sources.base import TradeSource
-from typing import List
-from models.position import Position
 
-
-from .flex_client import FlexClient, FlexQueryConfig, FlexClientConfig
+from .flex_client import FlexClient, FlexClientConfig, FlexQueryConfig
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +24,7 @@ class IBKRSource(TradeSource):
         super().__init__(source_id)
         self.flex_client = FlexClient(
             FlexClientConfig(
-                portfolio=FlexQueryConfig(
-                    token=portfolio_token, query_id=portfolio_query_id
-                ),
+                portfolio=FlexQueryConfig(token=portfolio_token, query_id=portfolio_query_id),
                 trades=FlexQueryConfig(token=trades_token, query_id=trades_query_id),
                 save_dir=save_dir,
             )
@@ -49,15 +47,11 @@ class IBKRSource(TradeSource):
 
     async def load_last_day_trades(self) -> bool:
         try:
-            executions = [
-                exec async for exec in self.flex_client.get_trades(self.source_id)
-            ]
+            executions = [exec async for exec in self.flex_client.get_trades(self.source_id)]
             if not executions:
                 return True
             since = self.get_min_datetime_for_last_day(executions)
-            self.last_day_trades = [
-                exec for exec in executions if exec.timestamp >= since
-            ]
+            self.last_day_trades = [exec for exec in executions if exec.timestamp >= since]
             return True
         except Exception as e:
             logger.error(f"Error fetching trades: {str(e)}")

@@ -1,9 +1,12 @@
-import uuid
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from .base import MessageSink
-from models.message import Message
-from models.db_message import DBMessage
 import logging
+import uuid
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from models.db_message import DBMessage
+from models.message import Message
+
+from .base import MessageSink
 
 logger = logging.getLogger(__name__)
 

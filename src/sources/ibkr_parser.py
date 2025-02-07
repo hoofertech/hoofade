@@ -1,23 +1,23 @@
-from pathlib import Path
-from typing import Dict, Any, Optional, List, Union
 import json
 import logging
-import pandas as pd
 from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
+import pandas as pd
+from ib_insync import FlexReport
+
 from models.instrument import Instrument, OptionType
 from models.position import Position
 from models.trade import Trade
-from ib_insync import FlexReport
 
 logger = logging.getLogger(__name__)
 
 
 class FlexReportParser:
     @staticmethod
-    def load_latest_file(
-        data_dir: Path, pattern: str, iter: int
-    ) -> Optional[Dict[str, Any]]:
+    def load_latest_file(data_dir: Path, pattern: str, iter: int) -> Optional[Dict[str, Any]]:
         """Load the most recent file matching the pattern from directory"""
         files = sorted(data_dir.glob(pattern))
         if not files:
@@ -63,7 +63,9 @@ class FlexReportParser:
             if ";" in datetime_str:
                 # Handle IBKR Flex Query format: "20250129;112309"
                 return pd.to_datetime(
-                    datetime_str.replace(";", " "), format="%Y%m%d %H%M%S", utc=True
+                    datetime_str.replace(";", " "),
+                    format="%Y%m%d %H%M%S",
+                    utc=True,
                 ).to_pydatetime()
             else:
                 # Handle other possible formats (like ISO format)
@@ -140,14 +142,12 @@ class FlexReportParser:
         report_time: Optional[datetime] = None
         if stmt_list:
             try:
-                latest_stmt = max(
-                    stmt_list, key=lambda x: str(x.get("whenGenerated", ""))
-                )
+                latest_stmt = max(stmt_list, key=lambda x: str(x.get("whenGenerated", "")))
                 when_generated = latest_stmt.get("whenGenerated")
                 if when_generated:
-                    report_time = datetime.strptime(
-                        str(when_generated), "%Y%m%d;%H%M%S"
-                    ).replace(tzinfo=timezone.utc)
+                    report_time = datetime.strptime(str(when_generated), "%Y%m%d;%H%M%S").replace(
+                        tzinfo=timezone.utc
+                    )
             except (ValueError, KeyError) as e:
                 logger.error(f"Error parsing report time: {e}")
 
@@ -174,9 +174,7 @@ class FlexReportParser:
                         quantity=Decimal(str(item_dict.get("position", "0"))),
                         cost_basis=Decimal(str(item_dict.get("costBasisPrice", "0"))),
                         market_price=Decimal(str(item_dict.get("markPrice", "0"))),
-                        report_time=report_time
-                        if report_time
-                        else datetime.now(timezone.utc),
+                        report_time=report_time if report_time else datetime.now(timezone.utc),
                     )
                 )
             except Exception as e:
@@ -206,9 +204,7 @@ class FlexReportParser:
             item_dict = None
             try:
                 item_dict = FlexReportParser._row_to_dict(item)
-                trade_time = FlexReportParser.parse_flex_datetime(
-                    str(item_dict["dateTime"])
-                )
+                trade_time = FlexReportParser.parse_flex_datetime(str(item_dict["dateTime"]))
                 if not trade_time:
                     logger.warning(
                         f"Invalid datetime for trade: {item_dict.get('tradeID', 'unknown')}"
