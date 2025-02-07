@@ -35,7 +35,7 @@ class IBKRSource(TradeSource):
     async def load_positions(self) -> bool:
         try:
             # Test connection by fetching positions
-            self.positions = [pos async for pos in self.flex_client.get_positions()]
+            self.positions = [pos async for pos in self.flex_client.download_positions()]
             logger.info(f"Connected to IBKR Flex: {len(self.positions)} positions")
             return True
         except Exception as e:
@@ -47,7 +47,7 @@ class IBKRSource(TradeSource):
 
     async def load_last_day_trades(self) -> bool:
         try:
-            executions = [exec async for exec in self.flex_client.get_trades(self.source_id)]
+            executions = [exec async for exec in self.flex_client.donwload_trades(self.source_id)]
             if not executions:
                 return True
             since = self.get_min_datetime_for_last_day(executions)

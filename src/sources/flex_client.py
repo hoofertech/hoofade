@@ -70,7 +70,7 @@ class FlexClient:
 
         logger.info(f"Saved {query_type} report to {xml_path} and {json_path}")
 
-    async def get_positions(self) -> AsyncIterator[Position]:
+    async def download_positions(self) -> AsyncIterator[Position]:
         """Get current positions"""
         try:
             report = FlexReport(
@@ -91,7 +91,7 @@ class FlexClient:
             logger.error(f"Error fetching positions: {str(e)}")
             return
 
-    async def get_trades(self, source_id: str) -> AsyncIterator[Trade]:
+    async def donwload_trades(self, source_id: str) -> AsyncIterator[Trade]:
         """Get trade executions"""
         try:
             report = FlexReport(
