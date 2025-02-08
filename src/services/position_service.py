@@ -1,10 +1,11 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, List, Optional, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import default_timezone
 from formatters.portfolio import PortfolioFormatter
 from models.db_portfolio import DBPortfolio
 from models.instrument import InstrumentType
@@ -71,7 +72,7 @@ class PositionService:
 
             # Ensure the timestamp is timezone-aware
             if record.last_post.tzinfo is None:
-                record.last_post = record.last_post.replace(tzinfo=timezone.utc)
+                record.last_post = record.last_post.replace(tzinfo=default_timezone())
 
             return cast(datetime, record.last_post)
         except Exception as e:

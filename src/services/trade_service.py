@@ -1,10 +1,11 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import default_timezone
 from formatters.trade import TradeFormatter
 from models.db_trade import DBTrade
 from models.message import Message
@@ -119,7 +120,7 @@ class TradeService:
         # Create combined message
         combined_message = Message(
             content="\n".join(content),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(default_timezone()),
             metadata={"type": "trade_batch"},
         )
 

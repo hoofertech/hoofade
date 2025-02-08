@@ -1,9 +1,10 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 import tweepy
 
+from config import default_timezone
 from formatters.message_splitter import MessageSplitter
 from models.message import Message
 
@@ -30,11 +31,11 @@ class TwitterSink(MessageSink):
             access_token=access_token,
             access_token_secret=access_token_secret,
         )
-        self.last_portfolio_publish = datetime.fromtimestamp(0, tz=timezone.utc)
-        self.last_trade_publish = datetime.fromtimestamp(0, tz=timezone.utc)
+        self.last_portfolio_publish = datetime.fromtimestamp(0, tz=default_timezone())
+        self.last_trade_publish = datetime.fromtimestamp(0, tz=default_timezone())
 
     def can_publish(self, message_type: str | None = None) -> bool:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(default_timezone())
         logger.info(f"Checking if we can publish: {message_type}")
         if message_type == "portfolio":
             logger.info(
@@ -77,7 +78,7 @@ class TwitterSink(MessageSink):
                     return False
 
             # Update the appropriate last publish time
-            now = datetime.now(timezone.utc)
+            now = datetime.now(default_timezone())
             if message_type == "portfolio":
                 self.last_portfolio_publish = now
             elif message_type == "trade_batch":

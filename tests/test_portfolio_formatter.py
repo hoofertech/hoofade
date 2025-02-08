@@ -1,9 +1,10 @@
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
 
+from config import default_timezone
 from formatters.portfolio import PortfolioFormatter
 from models.instrument import Instrument, OptionType
 from models.position import Position
@@ -64,7 +65,7 @@ def sample_positions(test_timestamp):
 
 
 def test_format_portfolio(portfolio_formatter, sample_positions):
-    timestamp = datetime.now(timezone.utc)
+    timestamp = datetime.now(default_timezone())
     message = portfolio_formatter.format_portfolio(sample_positions, timestamp)
 
     logger.info(f"message: {message.content}")
@@ -87,7 +88,7 @@ def test_format_portfolio(portfolio_formatter, sample_positions):
 
 
 def test_empty_portfolio(portfolio_formatter):
-    timestamp = datetime.now(timezone.utc)
+    timestamp = datetime.now(default_timezone())
     message = portfolio_formatter.format_portfolio([], timestamp)
     assert message.content == "No positions"
     assert message.metadata["type"] == "portfolio"

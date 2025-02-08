@@ -1,6 +1,7 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 
+from config import default_timezone
 from formatters.message_splitter import MessageSplitter
 from models.message import Message
 
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 def test_short_message_no_split():
     message = Message(
         content="🚨 BUY $AAPL 100@$150.25",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(default_timezone()),
         metadata={"type": "trade"},
     )
 
@@ -40,7 +41,7 @@ def test_portfolio_message_split():
 
     message = Message(
         content=content,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(default_timezone()),
         metadata={"type": "portfolio"},
     )
 
@@ -67,7 +68,7 @@ def test_portfolio_message_split():
 def test_metadata_preservation():
     message = Message(
         content="Test content that will not be split",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(default_timezone()),
         metadata={"type": "trade", "trade_id": "123"},
     )
 
@@ -82,7 +83,7 @@ def test_no_record_splitting():
 
     message = Message(
         content=content,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(default_timezone()),
         metadata={"type": "portfolio"},
     )
 

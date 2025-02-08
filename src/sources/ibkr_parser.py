@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Union
 import pandas as pd
 from ib_insync import FlexReport
 
+from config import default_timezone
 from models.instrument import Instrument, OptionType
 from models.position import Position
 from models.trade import Trade
@@ -51,7 +52,7 @@ class FlexReportParser:
         report_time = data.get("whenGenerated")
         if report_time:
             report_time = datetime.strptime(report_time, "%Y%m%d;%H%M%S").replace(
-                tzinfo=timezone.utc
+                tzinfo=default_timezone()
             )
 
         return FlexReportParser.parse_positions(data)
@@ -146,7 +147,7 @@ class FlexReportParser:
                 when_generated = latest_stmt.get("whenGenerated")
                 if when_generated:
                     report_time = datetime.strptime(str(when_generated), "%Y%m%d;%H%M%S").replace(
-                        tzinfo=timezone.utc
+                        tzinfo=default_timezone()
                     )
             except (ValueError, KeyError) as e:
                 logger.error(f"Error parsing report time: {e}")
@@ -174,7 +175,9 @@ class FlexReportParser:
                         quantity=Decimal(str(item_dict.get("position", "0"))),
                         cost_basis=Decimal(str(item_dict.get("costBasisPrice", "0"))),
                         market_price=Decimal(str(item_dict.get("markPrice", "0"))),
-                        report_time=report_time if report_time else datetime.now(timezone.utc),
+                        report_time=report_time
+                        if report_time
+                        else datetime.now(default_timezone()),
                     )
                 )
             except Exception as e:

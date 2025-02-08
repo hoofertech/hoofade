@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from unittest.mock import Mock, patch
 
 import pytest
 
+from config import default_timezone
 from models.message import Message
 from sinks.cli import CLISink
 
@@ -15,7 +16,7 @@ async def test_twitter_sink_publish_success(twitter_sink):
 
         message = Message(
             content="Test message",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(default_timezone()),
             metadata={},
         )
 
@@ -34,7 +35,7 @@ async def test_twitter_sink_publish_failure(twitter_sink):
 
         message = Message(
             content="Test message",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(default_timezone()),
             metadata={},
         )
 
@@ -50,7 +51,7 @@ async def test_twitter_sink_rate_limit(twitter_sink):
         # First message should succeed
         message1 = Message(
             content="Test message 1",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(default_timezone()),
             metadata={"type": "trade_batch"},
         )
         assert await twitter_sink.publish(message1)
@@ -58,7 +59,7 @@ async def test_twitter_sink_rate_limit(twitter_sink):
         # Second message should fail due to rate limit
         message2 = Message(
             content="Test message 2",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(default_timezone()),
             metadata={"type": "trade_batch"},
         )
         assert not await twitter_sink.publish(message2)
@@ -78,7 +79,7 @@ def cli_sink():
 async def test_cli_sink_publish_success(cli_sink, capsys):
     message = Message(
         content="Test CLI message",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(default_timezone()),
         metadata={},
     )
 

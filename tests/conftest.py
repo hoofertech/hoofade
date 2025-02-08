@@ -1,10 +1,11 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import List
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from config import default_timezone
 from models.db_trade import Base
 from models.instrument import Instrument, OptionType
 from models.message import Message
@@ -75,7 +76,7 @@ async def db_session():
 @pytest.fixture
 def test_timestamp():
     """Fixed timestamp for testing"""
-    return datetime(2024, 3, 20, 14, 30, 0, tzinfo=timezone.utc)
+    return datetime(2024, 3, 20, 14, 30, 0, tzinfo=default_timezone())
 
 
 @pytest.fixture

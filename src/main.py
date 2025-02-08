@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import threading
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict
 
 import uvicorn
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from config import (
+    default_timezone,
     get_db_url,
     get_sink_configs,
     get_source_configs,
@@ -99,7 +100,7 @@ class TradePublisher:
 
     async def run(self):
         """Main loop to process trades periodically"""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(default_timezone())
 
         while True:
             all_sources_done = False
@@ -145,7 +146,7 @@ class TradePublisher:
             logger.info(f"Loaded {len(new_trades)} trades")
 
             if new_trades:
-                now = min(now, min(trade.timestamp for trade in new_trades))
+                now = max(now, max(trade.timestamp for trade in new_trades))
                 logger.info(f">>> Newest trade timestamp: {now}")
             else:
                 logger.info(f">>> No new trades: {now}")

@@ -2,11 +2,16 @@ import logging
 import os
 from typing import Any, Dict
 
+import pytz
 from dotenv import load_dotenv
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+
+def default_timezone():
+    return pytz.timezone("America/New_York")
 
 
 def get_source_configs() -> Dict[str, Dict[str, Any]]:

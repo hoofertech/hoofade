@@ -1,10 +1,11 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
+from config import default_timezone
 from formatters.trade import TradeFormatter
 from models.trade import Trade
 from sinks.cli import CLISink
@@ -47,7 +48,7 @@ async def test_cli_sink_stock_trade(cli_sink, json_source, trade_formatter, caps
         quantity=Decimal("100"),
         price=Decimal("96.03"),
         side="BUY",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(default_timezone()),
         source_id="test-source",
         trade_id="test-trade-1",
         currency="USD",
@@ -84,7 +85,7 @@ async def test_cli_sink_option_trade(cli_sink, json_source, trade_formatter, cap
         quantity=Decimal("1111"),
         price=Decimal("4.37"),
         side="BUY",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(default_timezone()),
         source_id="test-source",
         trade_id="test-trade-2",
         currency="USD",
@@ -124,7 +125,7 @@ async def test_cli_sink_real_trades(cli_sink, json_source, trade_formatter, caps
         quantity=Decimal("222"),
         price=Decimal("9.20"),
         side="BUY",
-        timestamp=datetime(2025, 1, 29, 11, 23, 9, tzinfo=timezone.utc),
+        timestamp=datetime(2025, 1, 29, 11, 23, 9, tzinfo=default_timezone()),
         source_id="test-source",
         trade_id="466919725",
         currency="USD",
