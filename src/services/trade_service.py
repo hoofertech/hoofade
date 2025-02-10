@@ -43,7 +43,6 @@ class TradeService:
     ) -> Tuple[List[ProcessingResult], List[ProfitTaker]]:
         """Get and process new trades from all sources."""
         all_trades = []
-        saved_trades = []
 
         # Get and merge trades from all sources
         for source_id, source in self.sources.items():
@@ -51,7 +50,6 @@ class TradeService:
             for trade in source.get_last_day_trades():
                 if not await self._is_trade_published(trade):
                     await self._save_trade(trade)
-                    saved_trades.append(trade)
                     all_trades.append(trade)
 
         if not all_trades:
