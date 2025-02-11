@@ -123,3 +123,4 @@ config.ini
 .env
 logs/
 .env
+data/*
