@@ -105,6 +105,12 @@ class MessageFeed {
       });
       this.messagesContainer.insertBefore(fragment, this.messagesContainer.firstChild);
 
+      // Scroll to the top of the page smoothly
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+
       this.newMessagesCount = 0;
       this.pendingNewMessages = [];
       this.newMessagesButton.classList.add('hidden');
