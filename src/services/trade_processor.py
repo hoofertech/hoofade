@@ -211,7 +211,7 @@ class TradeProcessor:
             (second_trade.weighted_price - first_trade.weighted_price)
             / first_trade.weighted_price
             * Decimal("100")
-        )
+        ) if first_trade.weighted_price != Decimal("0") else Decimal("0")
 
         # If the sell came first, it's a short trade, so invert the profit
         if first_trade.side == "SELL":
