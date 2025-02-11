@@ -9,6 +9,11 @@ class MessageFeed {
     this.firstLoadedTimestamp = null;
     this.pendingNewMessages = [];
 
+    this.pullStartY = 0;
+    this.pullMoveY = 0;
+    this.isPulling = false;
+    this.pullThreshold = 80; // pixels to pull before refreshing
+
     this.messagesContainer = document.getElementById('messages');
     this.loadingElement = document.getElementById('loading');
     this.messageTypeSelect = document.getElementById('messageType');
@@ -43,6 +48,14 @@ class MessageFeed {
     this.newMessagesButton.addEventListener('click', () => {
       this.loadNewMessages();
     });
+
+    document.addEventListener('touchstart', (e) => this.handlePullStart(e), { passive: true });
+    document.addEventListener('touchmove', (e) => this.handlePullMove(e), { passive: true });
+    document.addEventListener('touchend', () => this.handlePullEnd());
+
+    document.addEventListener('mousedown', (e) => this.handlePullStart(e));
+    document.addEventListener('mousemove', (e) => this.handlePullMove(e));
+    document.addEventListener('mouseup', () => this.handlePullEnd());
   }
 
   shouldLoadMore() {
@@ -124,31 +137,8 @@ class MessageFeed {
 
   startPollingNewMessages() {
     setInterval(async () => {
-      if (this.loading) return;
-
-      try {
-        let url = '/api/messages?limit=20';
-        if (this.firstLoadedTimestamp) {
-          url += `&after=${this.firstLoadedTimestamp}`;
-        }
-        if (this.messageType !== 'all') {
-          url += `&type=${this.messageType}`;
-        }
-
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.messages && data.messages.length > 0) {
-          this.firstLoadedTimestamp = data.messages[0].timestamp;
-          this.pendingNewMessages.unshift(...data.messages);
-          this.newMessagesCount = this.pendingNewMessages.length;
-          this.newMessagesCountElement.textContent = this.newMessagesCount;
-          this.newMessagesButton.classList.remove('hidden');
-        }
-      } catch (error) {
-        console.error('Error checking for new messages:', error);
-      }
-    }, 5000); // Check every 5 seconds
+      this.checkForNewMessages();
+    }, 30000); // Check every 30 seconds
   }
 
   renderMessages(messages) {
@@ -205,6 +195,65 @@ class MessageFeed {
       .replace(/\n/g, '<br>')
       .replace(/\$([A-Z]+)/g, '<strong>$$$1</strong>')
       .replace(/(BUY|SELL)/g, '<span class="trade-side">$1</span>');
+  }
+
+  handlePullStart(e) {
+    if (window.scrollY === 0) {
+      this.isPulling = true;
+      this.pullStartY = e.type === 'mousedown' ? e.pageY : e.touches[0].pageY;
+      this.pullMoveY = this.pullStartY;
+    }
+  }
+
+  handlePullMove(e) {
+    if (!this.isPulling) return;
+
+    this.pullMoveY = e.type === 'mousemove' ? e.pageY : e.touches[0].pageY;
+    const pullDistance = this.pullMoveY - this.pullStartY;
+
+    if (pullDistance > 0 && pullDistance < this.pullThreshold) {
+      // Could add visual feedback here if desired
+    }
+  }
+
+  handlePullEnd() {
+    if (!this.isPulling) return;
+
+    const pullDistance = this.pullMoveY - this.pullStartY;
+    if (pullDistance > this.pullThreshold) {
+      this.checkForNewMessages();
+    }
+
+    this.isPulling = false;
+    this.pullStartY = 0;
+    this.pullMoveY = 0;
+  }
+
+  async checkForNewMessages() {
+    if (this.loading) return;
+
+    try {
+      let url = '/api/messages?limit=20';
+      if (this.firstLoadedTimestamp) {
+        url += `&after=${this.firstLoadedTimestamp}`;
+      }
+      if (this.messageType !== 'all') {
+        url += `&type=${this.messageType}`;
+      }
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.messages && data.messages.length > 0) {
+        this.firstLoadedTimestamp = data.messages[0].timestamp;
+        this.pendingNewMessages.unshift(...data.messages);
+        this.newMessagesCount = this.pendingNewMessages.length;
+        this.newMessagesCountElement.textContent = this.newMessagesCount;
+        this.newMessagesButton.classList.remove('hidden');
+      }
+    } catch (error) {
+      console.error('Error checking for new messages:', error);
+    }
   }
 }
 
