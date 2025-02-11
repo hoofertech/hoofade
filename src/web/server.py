@@ -48,6 +48,7 @@ async def get_messages(
     session: AsyncSession = Depends(get_session),
     limit: int = 20,
     before: Optional[datetime] = None,
+    after: Optional[datetime] = None,
     type: Optional[str] = None,
 ):
     try:
@@ -55,6 +56,8 @@ async def get_messages(
 
         if before:
             query = query.where(DBMessage.timestamp < before)
+        elif after:
+            query = query.where(DBMessage.timestamp > after)
 
         if type and type != "all":
             # Match the exact message_type from the database

@@ -5,13 +5,18 @@ class MessageFeed {
     this.lastTimestamp = null;
     this.messageType = 'all';
     this.hasMoreMessages = true;
+    this.newMessagesCount = 0;
+    this.firstLoadedTimestamp = null;
 
     this.messagesContainer = document.getElementById('messages');
     this.loadingElement = document.getElementById('loading');
     this.messageTypeSelect = document.getElementById('messageType');
+    this.newMessagesButton = document.getElementById('newMessages');
+    this.newMessagesCountElement = document.getElementById('newMessagesCount');
 
     this.setupEventListeners();
     this.loadMessages();
+    this.startPollingNewMessages();
   }
 
   setupEventListeners() {
@@ -20,7 +25,10 @@ class MessageFeed {
       this.messages = [];
       this.lastTimestamp = null;
       this.hasMoreMessages = true;
+      this.firstLoadedTimestamp = null;
+      this.newMessagesCount = 0;
       this.messagesContainer.innerHTML = '';
+      this.newMessagesButton.classList.add('hidden');
       this.loadMessages();
     });
 
@@ -28,6 +36,10 @@ class MessageFeed {
       if (this.shouldLoadMore()) {
         this.loadMessages();
       }
+    });
+
+    this.newMessagesButton.addEventListener('click', () => {
+      this.loadNewMessages();
     });
   }
 
@@ -59,6 +71,9 @@ class MessageFeed {
       const data = await response.json();
 
       if (data.messages && data.messages.length > 0) {
+        if (!this.firstLoadedTimestamp) {
+          this.firstLoadedTimestamp = data.messages[0].timestamp;
+        }
         this.messages.push(...data.messages);
         this.renderMessages(data.messages);
         this.lastTimestamp = data.messages[data.messages.length - 1].timestamp;
@@ -72,6 +87,71 @@ class MessageFeed {
       this.loading = false;
       this.loadingElement.classList.add('hidden');
     }
+  }
+
+  async loadNewMessages() {
+    if (this.loading) return;
+
+    this.loading = true;
+    this.loadingElement.classList.remove('hidden');
+
+    try {
+      let url = `/api/messages?limit=${this.newMessagesCount}`;
+      if (this.firstLoadedTimestamp) {
+        url += `&after=${this.firstLoadedTimestamp}`;
+      }
+      if (this.messageType !== 'all') {
+        url += `&type=${this.messageType}`;
+      }
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.messages && data.messages.length > 0) {
+        // Prepend new messages
+        const fragment = document.createDocumentFragment();
+        data.messages.reverse().forEach(message => {
+          const messageElement = this.createMessageElement(message);
+          fragment.appendChild(messageElement);
+        });
+        this.messagesContainer.insertBefore(fragment, this.messagesContainer.firstChild);
+
+        // Update timestamps and counts
+        this.firstLoadedTimestamp = data.messages[0].timestamp;
+        this.newMessagesCount = 0;
+        this.newMessagesButton.classList.add('hidden');
+      }
+    } catch (error) {
+      console.error('Error loading new messages:', error);
+    } finally {
+      this.loading = false;
+      this.loadingElement.classList.add('hidden');
+    }
+  }
+
+  startPollingNewMessages() {
+    setInterval(async () => {
+      if (!this.firstLoadedTimestamp || this.loading) return;
+
+      try {
+        let url = '/api/messages?limit=20';
+        url += `&after=${this.firstLoadedTimestamp}`;
+        if (this.messageType !== 'all') {
+          url += `&type=${this.messageType}`;
+        }
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.messages && data.messages.length > 0) {
+          this.newMessagesCount += data.messages.length;
+          this.newMessagesCountElement.textContent = this.newMessagesCount;
+          this.newMessagesButton.classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('Error checking for new messages:', error);
+      }
+    }, 30000); // Check every 30 seconds
   }
 
   renderMessages(messages) {
