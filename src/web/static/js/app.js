@@ -7,6 +7,7 @@ class MessageFeed {
     this.hasMoreMessages = true;
     this.newMessagesCount = 0;
     this.firstLoadedTimestamp = null;
+    this.pendingNewMessages = [];
 
     this.messagesContainer = document.getElementById('messages');
     this.loadingElement = document.getElementById('loading');
@@ -29,6 +30,7 @@ class MessageFeed {
       this.newMessagesCount = 0;
       this.messagesContainer.innerHTML = '';
       this.newMessagesButton.classList.add('hidden');
+      this.pendingNewMessages = [];
       this.loadMessages();
     });
 
@@ -90,37 +92,22 @@ class MessageFeed {
   }
 
   async loadNewMessages() {
-    if (this.loading) return;
+    if (this.loading || !this.pendingNewMessages.length) return;
 
     this.loading = true;
     this.loadingElement.classList.remove('hidden');
 
     try {
-      let url = `/api/messages?limit=${this.newMessagesCount}`;
-      if (this.firstLoadedTimestamp) {
-        url += `&after=${this.firstLoadedTimestamp}`;
-      }
-      if (this.messageType !== 'all') {
-        url += `&type=${this.messageType}`;
-      }
+      const fragment = document.createDocumentFragment();
+      this.pendingNewMessages.forEach(message => {
+        const messageElement = this.createMessageElement(message);
+        fragment.appendChild(messageElement);
+      });
+      this.messagesContainer.insertBefore(fragment, this.messagesContainer.firstChild);
 
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data.messages && data.messages.length > 0) {
-        // Prepend new messages
-        const fragment = document.createDocumentFragment();
-        data.messages.reverse().forEach(message => {
-          const messageElement = this.createMessageElement(message);
-          fragment.appendChild(messageElement);
-        });
-        this.messagesContainer.insertBefore(fragment, this.messagesContainer.firstChild);
-
-        // Update timestamps and counts
-        this.firstLoadedTimestamp = data.messages[0].timestamp;
-        this.newMessagesCount = 0;
-        this.newMessagesButton.classList.add('hidden');
-      }
+      this.newMessagesCount = 0;
+      this.pendingNewMessages = [];
+      this.newMessagesButton.classList.add('hidden');
     } catch (error) {
       console.error('Error loading new messages:', error);
     } finally {
@@ -131,11 +118,13 @@ class MessageFeed {
 
   startPollingNewMessages() {
     setInterval(async () => {
-      if (!this.firstLoadedTimestamp || this.loading) return;
+      if (this.loading) return;
 
       try {
         let url = '/api/messages?limit=20';
-        url += `&after=${this.firstLoadedTimestamp}`;
+        if (this.firstLoadedTimestamp) {
+          url += `&after=${this.firstLoadedTimestamp}`;
+        }
         if (this.messageType !== 'all') {
           url += `&type=${this.messageType}`;
         }
@@ -144,14 +133,16 @@ class MessageFeed {
         const data = await response.json();
 
         if (data.messages && data.messages.length > 0) {
-          this.newMessagesCount += data.messages.length;
+          this.firstLoadedTimestamp = data.messages[0].timestamp;
+          this.pendingNewMessages.unshift(...data.messages);
+          this.newMessagesCount = this.pendingNewMessages.length;
           this.newMessagesCountElement.textContent = this.newMessagesCount;
           this.newMessagesButton.classList.remove('hidden');
         }
       } catch (error) {
         console.error('Error checking for new messages:', error);
       }
-    }, 30000); // Check every 30 seconds
+    }, 5000); // Check every 5 seconds
   }
 
   renderMessages(messages) {
