@@ -3,10 +3,11 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import AsyncIterator
+from typing import List, Tuple
 
 from ib_insync import FlexReport
 
+from config import default_timezone
 from models.position import Position
 from models.trade import Trade
 
@@ -36,20 +37,33 @@ class FlexClient:
         self.config = config
         self.parser = FlexReportParser()
 
-    def _save_report(self, report: FlexReport, query_type: str) -> None:
+    def _save_report(self, report: FlexReport, query_type: str) -> datetime | None:
         """Save the raw XML and parsed DataFrame to files"""
+        when_generated_str = None
+        when_generated = None
+        logger.info(f"Report: {report}")
+        flex_statement = report.df("FlexStatement")
+        if flex_statement is not None:
+            flex_statement_recs = flex_statement.to_dict("records")
+            if flex_statement_recs:
+                when_generated_str = (
+                    flex_statement_recs[0].get("whenGenerated")
+                    if flex_statement_recs[0] is not None
+                    else None
+                )
+        if when_generated_str:
+            when_generated = datetime.strptime(str(when_generated_str), "%Y%m%d;%H%M%S").replace(
+                tzinfo=default_timezone()
+            )
+
         if not self.config.save_dir:
-            return
+            return when_generated
 
         out_save_dir = Path(self.config.save_dir)
         out_save_dir.mkdir(parents=True, exist_ok=True)
-        flex_statement = report.root.find(".//FlexStatement")
-        when_generated = (
-            flex_statement.get("whenGenerated") if flex_statement is not None else None
-        )
         timestamp = (
-            when_generated.replace(";", "_")
-            if when_generated
+            when_generated_str.replace(";", "_")
+            if when_generated_str
             else datetime.now().strftime("%Y%m%d_%H%M%S")
         )
 
@@ -69,8 +83,9 @@ class FlexClient:
             json.dump(data, f, default=str)
 
         logger.info(f"Saved {query_type} report to {xml_path} and {json_path}")
+        return when_generated
 
-    async def download_positions(self) -> AsyncIterator[Position]:
+    async def download_positions(self) -> Tuple[List[Position], datetime | None]:
         """Get current positions"""
         try:
             report = FlexReport(
@@ -81,17 +96,17 @@ class FlexClient:
 
             if not report.data:
                 logger.error("No data received from IBKR Flex API")
-                return
+                return ([], None)
 
-            self._save_report(report, "portfolio")
+            when_generated = self._save_report(report, "portfolio")
+            positions = self.parser.parse_positions(report, when_generated)
 
-            for pos in self.parser.parse_positions(report):
-                yield pos
+            return (positions, when_generated)
         except Exception as e:
             logger.error(f"Error fetching positions: {str(e)}")
-            return
+            return ([], None)
 
-    async def donwload_trades(self, source_id: str) -> AsyncIterator[Trade]:
+    async def download_trades(self, source_id: str) -> Tuple[List[Trade], datetime | None]:
         """Get trade executions"""
         try:
             report = FlexReport(
@@ -99,13 +114,15 @@ class FlexClient:
                 queryId=self.config.trades.query_id,
             )
             report.download(self.config.trades.token, self.config.trades.query_id)
+
             if not report.data:
                 logger.error("No data received from IBKR Flex API")
-                return
+                return [], None
 
-            self._save_report(report, "trades")
-            for exec in self.parser.parse_executions_from_df(report.df("TradeConfirm"), source_id):
-                yield exec
+            when_generated = self._save_report(report, "trades")
+            trades = self.parser.parse_executions(report.df("TradeConfirm"), source_id)
+
+            return trades, when_generated
         except Exception as e:
-            logger.error(f"Error fetching executions: {str(e)}")
-            return
+            logger.error(f"Error fetching trades: {str(e)}")
+            return [], None

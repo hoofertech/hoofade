@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import List
+from typing import List, Tuple
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -22,14 +22,14 @@ class MockTradeSource(TradeSource):
         self.trades = trades
         self.positions = []
 
+    async def load_positions(self) -> Tuple[bool, datetime | None]:
+        return True, None
+
     def get_positions(self) -> List[Position]:
         return self.positions
 
-    async def load_positions(self) -> bool:
-        return True
-
-    async def load_last_day_trades(self) -> bool:
-        return True
+    async def load_last_day_trades(self) -> Tuple[bool, datetime | None]:
+        return True, None
 
     def get_last_day_trades(self) -> List[Trade]:
         return self.trades

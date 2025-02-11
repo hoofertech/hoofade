@@ -106,7 +106,11 @@ def mock_flex_report(test_timestamp):
             "expiry": [None, "20240615"],
             "currency": ["USD", "USD"],
         }
+        flex_statement_data = {
+            "whenGenerated": [(test_timestamp - timedelta(minutes=15)).strftime("%Y%m%d;%H%M%S")],
+        }
         trades_df = pd.DataFrame(trades_data)
+        flex_statement_df = pd.DataFrame(flex_statement_data)
 
         # Mock the df method to return our DataFrames
         def mock_df(topic):
@@ -114,10 +118,14 @@ def mock_flex_report(test_timestamp):
                 return positions_df
             elif topic == "TradeConfirm":
                 return trades_df
+            elif topic == "FlexStatement":
+                return flex_statement_df
             return None
 
         mock_report_instance.df = Mock(side_effect=mock_df)
-        mock_report_instance.topics = Mock(return_value=["Position", "TradeConfirm"])
+        mock_report_instance.topics = Mock(
+            return_value=["Position", "TradeConfirm", "FlexStatement"]
+        )
 
         # Make the FlexReport class return our mock instance
         mock_report_class.return_value = mock_report_instance
@@ -222,7 +230,8 @@ async def test_ibkr_source_load_positions(mock_flex_report):
         trades_token="test-token",
         trades_query_id="456",
     )
-    assert await source.load_positions()
+    success, _when_generated = await source.load_positions()
+    assert success
 
 
 @pytest.mark.asyncio
@@ -235,13 +244,14 @@ async def test_ibkr_source_get_stock_trades(mock_flex_report, test_timestamp):
         trades_query_id="456",
     )
 
-    assert await source.load_last_day_trades()
+    success, _when_generated = await source.load_last_day_trades()
+    assert success
     trades = source.get_last_day_trades()
 
     assert len(trades) == 2  # One stock trade and one option trade
 
     # Verify stock trade
-    stock_trade = next(t for t in trades if t.instrument.type == InstrumentType.STOCK)
+    stock_trade = [t for t in trades if t.instrument.type == InstrumentType.STOCK][0]
     assert stock_trade.instrument.symbol == "AAPL"
     assert stock_trade.quantity == Decimal("100")
     assert stock_trade.price == Decimal("150.25")
@@ -261,8 +271,10 @@ async def test_ibkr_source_get_option_trades(mock_flex_report, test_timestamp):
     assert await source.load_last_day_trades()
     trades = source.get_last_day_trades()
 
+    assert len(trades) > 0
+
     # Verify option trade
-    option_trade = next(t for t in trades if t.instrument.type == InstrumentType.OPTION)
+    option_trade = [t for t in trades if t.instrument.type == InstrumentType.OPTION][0]
     assert option_trade.instrument.symbol == "AAPL"
     assert option_trade.quantity == Decimal("5")
     assert option_trade.price == Decimal("3.50")

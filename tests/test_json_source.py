@@ -23,7 +23,8 @@ async def json_source(test_data_dir):
 @pytest.mark.asyncio
 async def test_json_source_load_positions(test_data_dir):
     source = JsonSource(source_id="test-source", data_dir=str(test_data_dir))
-    assert await source.load_positions()
+    success, when_generated = await source.load_positions()
+    assert success
 
 
 @pytest.mark.asyncio

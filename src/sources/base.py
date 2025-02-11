@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import List
+from datetime import datetime
+from typing import List, Tuple
 
 from models.position import Position
 from models.trade import Trade
@@ -10,7 +11,7 @@ class TradeSource(ABC):
         self.source_id = source_id
 
     @abstractmethod
-    async def load_positions(self) -> bool:
+    async def load_positions(self) -> Tuple[bool, datetime | None]:
         """Establish connection to the source"""
         pass
 
@@ -20,7 +21,7 @@ class TradeSource(ABC):
         pass
 
     @abstractmethod
-    async def load_last_day_trades(self) -> bool:
+    async def load_last_day_trades(self) -> Tuple[bool, datetime | None]:
         """Load trades for the last day"""
         pass
 

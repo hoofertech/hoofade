@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import List
+from typing import List, Tuple
 
 from models.position import Position
 from models.trade import Trade
@@ -32,30 +32,26 @@ class IBKRSource(TradeSource):
         self.positions: List[Position] = []
         self.last_day_trades: List[Trade] = []
 
-    async def load_positions(self) -> bool:
+    async def load_positions(self) -> Tuple[bool, datetime | None]:
         try:
             # Test connection by fetching positions
-            self.positions = [pos async for pos in self.flex_client.download_positions()]
+            self.positions, when_generated = await self.flex_client.download_positions()
             logger.info(f"Connected to IBKR Flex: {len(self.positions)} positions")
-            return True
+            return True, when_generated
         except Exception as e:
             logger.error(f"Failed to connect to IBKR Flex: {str(e)}")
-            return False
+            return False, None
 
     def get_positions(self) -> List[Position]:
         return self.positions
 
-    async def load_last_day_trades(self) -> bool:
-        try:
-            executions = [exec async for exec in self.flex_client.donwload_trades(self.source_id)]
-            if not executions:
-                return True
-            since = self.get_min_datetime_for_last_day(executions)
-            self.last_day_trades = [exec for exec in executions if exec.timestamp >= since]
-            return True
-        except Exception as e:
-            logger.error(f"Error fetching trades: {str(e)}")
-            return False
+    async def load_last_day_trades(self) -> Tuple[bool, datetime | None]:
+        executions, when_generated = await self.flex_client.download_trades(self.source_id)
+        if not executions:
+            return True, when_generated
+        since = self.get_min_datetime_for_last_day(executions)
+        self.last_day_trades = [exec for exec in executions if exec.timestamp >= since]
+        return True, when_generated
 
     def get_last_day_trades(self) -> List[Trade]:
         return self.last_day_trades

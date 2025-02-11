@@ -36,28 +36,6 @@ class FlexReportParser:
             return None
 
     @staticmethod
-    def load_latest_trades(data_dir: Path, iter: int) -> Optional[List[Dict[str, Any]]]:
-        """Load the most recent trades file"""
-        data = FlexReportParser.load_latest_file(data_dir, "trades_*.json", iter)
-        if not data:
-            return None
-        return data.get("TradeConfirm", [])
-
-    @staticmethod
-    def load_latest_portfolio(data_dir: Path, iter: int) -> Optional[List[Position]]:
-        """Load the most recent portfolio file"""
-        data = FlexReportParser.load_latest_file(data_dir, "portfolio_*.json", iter)
-        if not data:
-            return None
-        report_time = data.get("whenGenerated")
-        if report_time:
-            report_time = datetime.strptime(report_time, "%Y%m%d;%H%M%S").replace(
-                tzinfo=default_timezone()
-            )
-
-        return FlexReportParser.parse_positions(data)
-
-    @staticmethod
     def parse_flex_datetime(datetime_str: str) -> Optional[datetime]:
         """Parse datetime from IBKR Flex format"""
         try:
@@ -110,6 +88,7 @@ class FlexReportParser:
     @staticmethod
     def parse_positions(
         report: Union[FlexReport, Dict[str, Any], None],
+        when_generated: datetime | None,
     ) -> List[Position]:
         """Parse positions from DataFrame or list of dicts"""
         if report is None:
@@ -124,33 +103,6 @@ class FlexReportParser:
         """Parse positions from DataFrame or list of dicts"""
         if data is None:
             return []
-
-        # Get statement data
-        stmt: Union[pd.DataFrame, List[Dict[str, Any]], None] = (
-            report.df("FlexStatement")
-            if isinstance(report, FlexReport)
-            else report.get("FlexStatement", [])
-        )
-
-        # Convert statement to list if needed
-        stmt_list: List[Dict[str, Any]] = []
-        if isinstance(stmt, pd.DataFrame) and not stmt.empty:
-            stmt_list = stmt.to_dict("records")
-        elif isinstance(stmt, list):
-            stmt_list = stmt
-
-        # Get report time from statements
-        report_time: Optional[datetime] = None
-        if stmt_list:
-            try:
-                latest_stmt = max(stmt_list, key=lambda x: str(x.get("whenGenerated", "")))
-                when_generated = latest_stmt.get("whenGenerated")
-                if when_generated:
-                    report_time = datetime.strptime(str(when_generated), "%Y%m%d;%H%M%S").replace(
-                        tzinfo=default_timezone()
-                    )
-            except (ValueError, KeyError) as e:
-                logger.error(f"Error parsing report time: {e}")
 
         # Convert position data to list if needed
         data_list: List[Dict[str, Any]] = []
@@ -175,8 +127,8 @@ class FlexReportParser:
                         quantity=Decimal(str(item_dict.get("position", "0"))),
                         cost_basis=Decimal(str(item_dict.get("costBasisPrice", "0"))),
                         market_price=Decimal(str(item_dict.get("markPrice", "0"))),
-                        report_time=report_time
-                        if report_time
+                        report_time=when_generated
+                        if when_generated
                         else datetime.now(default_timezone()),
                     )
                 )

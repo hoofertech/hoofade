@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import threading
-from datetime import datetime
 from typing import Dict
 
 import uvicorn
@@ -13,7 +12,6 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from config import (
-    default_timezone,
     get_db_url,
     get_sink_configs,
     get_source_configs,
@@ -100,7 +98,7 @@ class TradePublisher:
 
     async def run(self):
         """Main loop to process trades periodically"""
-        now = datetime.now(default_timezone())
+        now = None
 
         while True:
             all_sources_done = False
@@ -109,47 +107,40 @@ class TradePublisher:
 
             # First process trades for all sources to get correct timestamp
             for source in self.sources.values():
-                if not await source.load_last_day_trades():
+                success, last_report_time = await source.load_last_day_trades()
+                if not success:
                     logger.error(f"Failed to load trades for source {source.source_id}")
                     continue
 
+                if last_report_time is not None:
+                    if now is None or last_report_time > now:
+                        now = last_report_time
+
             # Load and merge positions if needed
-            if await self.position_service.should_post_portfolio(now):
+            if now is not None and await self.position_service.should_post_portfolio(now):
                 # Load positions from all sources
                 for source in self.sources.values():
-                    if not await source.load_positions():
+                    success, last_report_time = await source.load_positions()
+                    if not success:
                         logger.error(f"Failed to connect to source {source.source_id}")
                         continue
+                    if last_report_time is not None:
+                        if now is None or last_report_time > now:
+                            now = last_report_time
 
                 # Use TradeService's position merging logic
                 self.position_service.merged_positions = (
                     await self.position_service.get_merged_positions()
                 )
-                if self.position_service.merged_positions:
-                    # Use the latest report time from any position
-                    latest_report_time = max(
-                        (
-                            p.report_time
-                            for p in self.position_service.merged_positions
-                            if p.report_time is not None
-                        ),
-                        default=None,
-                    )
-                    if latest_report_time:
-                        now = latest_report_time
-                        logger.info(f">>> Using latest position report time: {now}")
+                await self.position_service.publish_portfolio(
+                    self.position_service.merged_positions, now
+                )
 
             (
                 new_trades,
                 portfolio_profit_takers,
             ) = await self.trade_service.get_new_trades()
             logger.info(f"Loaded {len(new_trades)} trades")
-
-            if new_trades:
-                now = max(now, max(trade.timestamp for trade in new_trades))
-                logger.info(f">>> Newest trade timestamp: {now}")
-            else:
-                logger.info(f">>> No new trades: {now}")
 
             if portfolio_profit_takers:
                 logger.info(f"Applying {len(portfolio_profit_takers)} portfolio profit takers")
@@ -160,12 +151,6 @@ class TradePublisher:
                         logger.info(
                             f"Applied portfolio profit taker for {profit_taker.instrument.symbol}"
                         )
-
-            # Check if we should publish with updated timestamp
-            if await self.position_service.should_post_portfolio(now):
-                await self.position_service.publish_portfolio(
-                    self.position_service.merged_positions, now
-                )
 
             # Now publish trades
             if new_trades:
