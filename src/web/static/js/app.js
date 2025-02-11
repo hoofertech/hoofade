@@ -13,6 +13,9 @@ class MessageFeed {
     this.pullMoveY = 0;
     this.isPulling = false;
     this.pullThreshold = 80; // pixels to pull before refreshing
+    this.lastScrollTop = 0;
+    this.lastWheelCheck = 0;  // timestamp for last wheel check
+    this.wheelThrottleMs = 1000;  // One second throttle
 
     this.messagesContainer = document.getElementById('messages');
     this.loadingElement = document.getElementById('loading');
@@ -48,6 +51,9 @@ class MessageFeed {
     this.newMessagesButton.addEventListener('click', () => {
       this.loadNewMessages();
     });
+
+    // wheel event listener for mouse wheel/touchpad scrolling
+    window.addEventListener('wheel', (e) => this.handleWheel(e), { passive: true });
 
     document.addEventListener('touchstart', (e) => this.handlePullStart(e), { passive: true });
     document.addEventListener('touchmove', (e) => this.handlePullMove(e), { passive: true });
@@ -253,6 +259,21 @@ class MessageFeed {
       }
     } catch (error) {
       console.error('Error checking for new messages:', error);
+    }
+  }
+
+  handleWheel(e) {
+    // Check if we're at the top of the page
+    if (window.scrollY === 0) {
+      // If scrolling up (negative deltaY means scrolling up)
+      if (e.deltaY < 0) {
+        const now = Date.now();
+        // Only proceed if enough time has passed since last check
+        if (now - this.lastWheelCheck >= this.wheelThrottleMs) {
+          this.lastWheelCheck = now;
+          this.checkForNewMessages();
+        }
+      }
     }
   }
 }
