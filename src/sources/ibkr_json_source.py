@@ -34,12 +34,12 @@ class JsonSource(TradeSource):
                 self.data_dir, self.positions_iter
             )
             self.positions_iter += 1
-            if positions_data is None:
+            if not positions_data:
                 logger.error(f"No positions data found for {self.source_id}")
                 return False, None
 
             self.positions = positions_data
-            return True, when_generated
+            return when_generated is not None, when_generated
         except Exception as e:
             logger.error(f"Error connecting to JSON source: {e}")
             return False, None

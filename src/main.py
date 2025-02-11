@@ -123,7 +123,6 @@ class TradePublisher:
                     success, last_report_time = await source.load_positions()
                     if not success:
                         logger.error(f"Failed to connect to source {source.source_id}")
-                        continue
                     if last_report_time is not None:
                         if now is None or last_report_time > now:
                             now = last_report_time

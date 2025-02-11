@@ -8,10 +8,11 @@ from models.position import Position
 
 class PortfolioFormatter:
     def format_portfolio(self, positions: List[Position], timestamp: datetime) -> Message:
+        timestamp_date = timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
         if not positions:
             return Message(
                 content="No positions",
-                timestamp=timestamp,
+                timestamp=timestamp_date,
                 metadata={"type": "portfolio"},
             )
 
@@ -102,6 +103,6 @@ class PortfolioFormatter:
 
         return Message(
             content="\n".join(content),
-            timestamp=timestamp,
+            timestamp=timestamp_date,
             metadata={"type": "portfolio"},
         )
