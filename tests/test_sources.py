@@ -268,7 +268,7 @@ async def test_ibkr_source_get_option_trades(mock_flex_report, test_timestamp):
         trades_query_id="456",
     )
 
-    assert await source.load_last_day_trades()
+    await source.load_last_day_trades()
     trades = source.get_last_day_trades()
 
     assert len(trades) > 0

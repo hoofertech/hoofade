@@ -48,7 +48,9 @@ class IBKRSource(TradeSource):
     async def load_last_day_trades(self) -> Tuple[bool, datetime | None]:
         executions, when_generated = await self.flex_client.download_trades(self.source_id)
         if not executions:
-            return True, when_generated
+            return when_generated is not None, when_generated
+        if not when_generated:
+            logger.error(f"There's no timestamp set on loading new trades for {self.source_id}")
         since = self.get_min_datetime_for_last_day(executions)
         self.last_day_trades = [exec for exec in executions if exec.timestamp >= since]
         return True, when_generated
