@@ -4,6 +4,7 @@ class MessageFeed {
     this.loading = false;
     this.lastTimestamp = null;
     this.messageType = 'all';
+    this.hasMoreMessages = true;
 
     this.messagesContainer = document.getElementById('messages');
     this.loadingElement = document.getElementById('loading');
@@ -18,6 +19,7 @@ class MessageFeed {
       this.messageType = this.messageTypeSelect.value;
       this.messages = [];
       this.lastTimestamp = null;
+      this.hasMoreMessages = true;
       this.messagesContainer.innerHTML = '';
       this.loadMessages();
     });
@@ -30,13 +32,16 @@ class MessageFeed {
   }
 
   shouldLoadMore() {
+    if (!this.hasMoreMessages || this.loading) {
+      return false;
+    }
     const scrollPosition = window.innerHeight + window.scrollY;
     const scrollThreshold = document.documentElement.scrollHeight - 200;
-    return scrollPosition >= scrollThreshold && !this.loading;
+    return scrollPosition >= scrollThreshold;
   }
 
   async loadMessages() {
-    if (this.loading) return;
+    if (this.loading || !this.hasMoreMessages) return;
 
     this.loading = true;
     this.loadingElement.classList.remove('hidden');
@@ -57,9 +62,12 @@ class MessageFeed {
         this.messages.push(...data.messages);
         this.renderMessages(data.messages);
         this.lastTimestamp = data.messages[data.messages.length - 1].timestamp;
+      } else {
+        this.hasMoreMessages = false;
       }
     } catch (error) {
       console.error('Error loading messages:', error);
+      this.hasMoreMessages = false;
     } finally {
       this.loading = false;
       this.loadingElement.classList.add('hidden');
