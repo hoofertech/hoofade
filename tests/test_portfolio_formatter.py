@@ -72,7 +72,7 @@ def test_format_portfolio(portfolio_formatter, sample_positions):
 
     # Check content structure
     lines = message.content.split("\n")
-    expected_date = timestamp.strftime("%d %b %Y").upper()
+    expected_date = timestamp.strftime("%d %b %Y %H:%M").upper()
     assert lines[0] == f"Portfolio on {expected_date}"
     assert lines[1] == ""  # Empty line after title
     assert lines[2] == "📊 Stocks:"

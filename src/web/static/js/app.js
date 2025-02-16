@@ -167,8 +167,8 @@ class MessageFeed {
         displayTimestamp = new Date(match[1]).toLocaleString();
       }
     } else if (message.message_type === 'portfolio') {
-      // Extract date from first line of portfolio message (format: "Portfolio on DD MMM YYYY")
-      const match = message.content.match(/Portfolio on (\d{2} [A-Z]{3} \d{4})/);
+      // Extract date from first line of portfolio message (format: "Portfolio on DD MMM YYYY HH:MM")
+      const match = message.content.match(/Portfolio on (\d{2} [A-Z]{3} \d{4} \d{2}:\d{2})/);
       if (match) {
         displayTimestamp = new Date(match[1]).toLocaleString();
       }

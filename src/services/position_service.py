@@ -10,7 +10,7 @@ from formatters.portfolio import PortfolioFormatter
 from models.db_portfolio import DBPortfolio
 from models.instrument import InstrumentType
 from models.position import Position
-from services.trade_processor import ProfitTaker
+from services.trade_processor import ProcessingResult, ProfitTaker
 from sinks.base import MessageSink
 from sources.base import TradeSource
 
@@ -30,7 +30,13 @@ class PositionService:
         self.portfolio_formatter = PortfolioFormatter()
         self.merged_positions: List[Position] = []
 
-    async def publish_portfolio(self, positions: List[Position], timestamp: datetime):
+    async def publish_portfolio(
+        self,
+        positions: List[Position],
+        timestamp: datetime,
+        publish_timestamp: datetime,
+        save_portfolio_post: bool = True,
+    ):
         message = self.portfolio_formatter.format_portfolio(positions, timestamp)
 
         publish_success = True
@@ -40,10 +46,10 @@ class PositionService:
                     publish_success = False
                     logger.error(f"Failed to publish portfolio to {sink.sink_id}")
 
-        if publish_success:
+        if publish_success and save_portfolio_post:
             # Save portfolio post for all sources since it's consolidated
-            await self._save_portfolio_post(timestamp)
-            logger.info("Successfully published consolidated portfolio")
+            await self._save_portfolio_post(publish_timestamp)
+            logger.info(f"Successfully published consolidated portfolio at {publish_timestamp}")
 
     async def should_post_portfolio(self, now: datetime) -> bool:
         """Check if we should post portfolio based on last post time"""
@@ -89,46 +95,47 @@ class PositionService:
             logger.error(f"Error saving portfolio post: {str(e)}")
             await self.db.rollback()
 
-    async def apply_profit_taker(
-        self, profit_taker: ProfitTaker, positions: List[Position]
-    ) -> bool:
+    async def apply_new_trades(self, new_trade: ProcessingResult, positions: List[Position]):
         """
-        Apply a profit taker to the portfolio positions.
+        Apply a new trade to the portfolio positions.
         Returns True if successfully applied.
         """
-        new_positions = []
+        trade = new_trade
+        if isinstance(trade, ProfitTaker):
+            trade = trade.closing_trade
         # Find matching position
         for position in positions:
-            if position.instrument == profit_taker.instrument:
+            if position.instrument == trade.instrument:
                 # Calculate the matched quantity
-                matched_quantity = min(
-                    abs(position.quantity),
-                    min(
-                        abs(profit_taker.buy_trade.quantity),
-                        abs(profit_taker.sell_trade.quantity),
-                    ),
-                )
-
-                # Update position quantity
-                if position.is_short:
-                    position.quantity += matched_quantity
-                else:
-                    position.quantity -= matched_quantity
+                matched_quantity = trade.quantity
+                position.quantity += abs(matched_quantity) * (-1 if trade.side == "SELL" else 1)
 
                 # If position is fully closed, remove it
                 if position.quantity == 0:
                     positions.remove(position)
-                    logger.info(f"Removed closed position for {position.instrument.symbol}")
+                    logger.info(f"Removed closed position for {position.instrument}")
                 else:
-                    new_positions.append(position)
                     logger.info(
-                        f"Updated position quantity for {position.instrument.symbol} "
-                        f"from {position.quantity + matched_quantity} to {position.quantity}"
+                        f"Updated position quantity for {position.instrument} "
+                        f"from {position.quantity - matched_quantity} to {position.quantity}"
                     )
-                return True
+                return
 
-        logger.debug(f"No matching position found for {profit_taker.instrument.symbol}")
-        return False
+        if isinstance(trade, ProfitTaker):
+            logger.error(f"Profit taker {trade} not applied")
+            return
+
+        logger.info(f"No matching position found for {trade.instrument}")
+        # If no matching position is found, create a new position
+        new_position = Position(
+            instrument=trade.instrument,
+            quantity=trade.quantity,
+            cost_basis=trade.price,
+            market_price=trade.price,
+            report_time=trade.timestamp,
+        )
+        positions.append(new_position)
+        logger.info(f"Created new position for {new_position.instrument}")
 
     async def get_merged_positions(self) -> List[Position]:
         """Get merged positions from all sources."""

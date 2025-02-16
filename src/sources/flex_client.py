@@ -112,7 +112,6 @@ class FlexClient:
             report = FlexReport(token=token, queryId=query_id)
             report.download(token, query_id)
 
-
             if not report.topics():
                 logger.error(f"No data received from IBKR Flex API for {report_type}")
                 return None, None

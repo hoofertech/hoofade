@@ -57,18 +57,27 @@ class Instrument:
 
     @property
     def strike(self) -> Decimal:
-        if self.type != InstrumentType.OPTION:
+        if self.type != InstrumentType.OPTION or self.option_details is None:
             raise ValueError("Strike is only defined for options")
         return self.option_details.strike
 
     @property
     def expiry(self) -> date:
-        if self.type != InstrumentType.OPTION:
+        if self.type != InstrumentType.OPTION or self.option_details is None:
             raise ValueError("Expiry is only defined for options")
         return self.option_details.expiry
 
     @property
     def option_type(self) -> OptionType:
-        if self.type != InstrumentType.OPTION:
+        if self.type != InstrumentType.OPTION or self.option_details is None:
             raise ValueError("Option type is only defined for options")
         return self.option_details.option_type
+
+    def __str__(self) -> str:
+        if self.type == InstrumentType.STOCK:
+            return f"{self.symbol}"
+        elif self.type == InstrumentType.OPTION:
+            option_type_str = "Call" if self.option_type == OptionType.CALL else "Put"
+            return f"{self.symbol} {self.expiry:%d-%b-%Y} {self.strike:.2f} {option_type_str}"
+        else:
+            return f"{self.symbol} (Unknown Type)"

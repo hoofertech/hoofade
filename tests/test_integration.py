@@ -1,9 +1,6 @@
-from decimal import Decimal
-
 import pytest
 
 from formatters.trade import TradeFormatter
-from models.trade import Trade
 from models.instrument import OptionType
 
 
@@ -12,7 +9,7 @@ async def test_end_to_end_flow_with_option_trade(
     test_timestamp, mock_source, mock_sink, call_option_instrument
 ):
     # Create an option trade
-    
+
     option_trade = {
         "accountId": "U7170000",
         "currency": call_option_instrument.currency,

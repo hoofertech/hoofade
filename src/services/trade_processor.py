@@ -23,6 +23,11 @@ class CombinedTrade:
     currency: str
     side: str  # Explicit "BUY" or "SELL"
 
+    @property
+    def price(self) -> Decimal:
+        """Get the price as the weighted price"""
+        return self.weighted_price
+
 
 @dataclass
 class ProfitTaker:
@@ -47,6 +52,11 @@ class ProfitTaker:
     def currency(self) -> str:
         """Get the currency from the buy or sell trade"""
         return self.buy_trade.currency
+
+    @property
+    def closing_trade(self) -> CombinedTrade:
+        """Get the side from the buy or sell trade"""
+        return self.buy_trade if self.buy_trade.trades else self.sell_trade
 
 
 ProcessingResult = Union[Trade, CombinedTrade, ProfitTaker]

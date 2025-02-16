@@ -89,4 +89,4 @@ class JsonSource(TradeSource):
 
     @override
     def get_sleep_time(self) -> int:
-        return 1
+        return 0

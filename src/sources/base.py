@@ -44,25 +44,21 @@ class TradeSource(ABC):
             trades_data, _when_generated = await self.load_latest_trades_data()
 
             if not trades_data:
-                logger.warning(f"No trades data found for {self.source_id}")
-                return (True, None)
+                logger.warning(f"No trades data found for {self.source_id} at {_when_generated}")
+                return (True, _when_generated)
 
             parsed_trades = self.parser.parse_executions(trades_data, self.source_id)
             if not parsed_trades:
-                logger.warning(f"No parsed trades data found for {self.source_id}")
-                return (True, None)
+                logger.warning(
+                    f"No parsed trades data found for {self.source_id} at {_when_generated}"
+                )
+                return (True, _when_generated)
 
             since = TradeSource.get_min_datetime_for_last_day(parsed_trades)
             self.last_day_trades = [trade for trade in parsed_trades if trade.timestamp >= since]
             logger.debug(f"Loaded {len(self.last_day_trades)} trades for {self.source_id}")
 
-            # Get the latest timestamp from the trades
-            latest_timestamp = (
-                max(trade.timestamp for trade in self.last_day_trades)
-                if self.last_day_trades
-                else None
-            )
-            return (True, latest_timestamp)
+            return (True, _when_generated)
 
         except Exception as e:
             logger.error(f"Error fetching trades: {e}", exc_info=True)

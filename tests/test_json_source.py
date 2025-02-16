@@ -27,6 +27,7 @@ async def test_json_source_load_positions(test_data_dir):
     assert success
     assert when_generated is not None
 
+
 @pytest.mark.asyncio
 async def test_json_source_get_positions(json_source):
     positions = json_source.get_positions()

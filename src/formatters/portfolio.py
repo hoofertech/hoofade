@@ -8,7 +8,7 @@ from models.position import Position
 
 class PortfolioFormatter:
     def format_portfolio(self, positions: List[Position], timestamp: datetime) -> Message:
-        timestamp_date = timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+        timestamp_date = timestamp
         if not positions:
             return Message(
                 content="No positions",
@@ -17,7 +17,7 @@ class PortfolioFormatter:
             )
 
         # Format the date in a readable format
-        date_str = timestamp.strftime("%d %b %Y").upper()
+        date_str = timestamp.strftime("%d %b %Y %H:%M").upper()
 
         content = []
         # Add title
