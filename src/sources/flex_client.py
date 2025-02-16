@@ -1,15 +1,14 @@
 import json
 import logging
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, Tuple
 
 from ib_insync import FlexReport
 
 from config import default_timezone
-from models.position import Position
-from models.trade import Trade
 
 from .ibkr_parser import FlexReportParser
 
@@ -37,7 +36,9 @@ class FlexClient:
         self.config = config
         self.parser = FlexReportParser()
 
-    def _save_report(self, report: FlexReport, query_type: str) -> datetime | None:
+    def _save_report(
+        self, report: FlexReport, query_type: str
+    ) -> Tuple[datetime | None, dict[str, Any] | None]:
         """Save the raw XML and parsed DataFrame to files"""
         when_generated_str = None
         when_generated = None
@@ -56,10 +57,11 @@ class FlexClient:
                 tzinfo=default_timezone()
             )
 
-        if not self.config.save_dir:
-            return when_generated
+        save_dir = self.config.save_dir
+        if not save_dir:
+            save_dir = tempfile.gettempdir()
 
-        out_save_dir = Path(self.config.save_dir)
+        out_save_dir = Path(save_dir)
         out_save_dir.mkdir(parents=True, exist_ok=True)
         timestamp = (
             when_generated_str.replace(";", "_")
@@ -83,46 +85,40 @@ class FlexClient:
             json.dump(data, f, default=str)
 
         logger.info(f"Saved {query_type} report to {xml_path} and {json_path}")
-        return when_generated
+        return when_generated, data
 
-    async def download_positions(self) -> Tuple[List[Position], datetime | None]:
+    async def load_report(self, json_path: str) -> Tuple[dict[str, Any] | None, datetime | None]:
+        """Load a report from the save directory"""
+        with open(json_path, "r") as f:
+            return json.load(f)
+
+    async def download_positions(self) -> Tuple[dict[str, Any] | None, datetime | None]:
         """Get current positions"""
-        try:
-            report = FlexReport(
-                token=self.config.portfolio.token,
-                queryId=self.config.portfolio.query_id,
-            )
-            report.download(self.config.portfolio.token, self.config.portfolio.query_id)
+        return await self._download_report(
+            self.config.portfolio.token, self.config.portfolio.query_id, "portfolio"
+        )
 
-            if not report.data:
-                logger.error("No data received from IBKR Flex API")
-                return ([], None)
-
-            when_generated = self._save_report(report, "portfolio")
-            positions = self.parser.parse_positions(report, when_generated)
-
-            return (positions, when_generated)
-        except Exception as e:
-            logger.error(f"Error fetching positions: {str(e)}")
-            return ([], None)
-
-    async def download_trades(self, source_id: str) -> Tuple[List[Trade], datetime | None]:
+    async def download_trades(self) -> Tuple[dict[str, Any] | None, datetime | None]:
         """Get trade executions"""
+        return await self._download_report(
+            self.config.trades.token, self.config.trades.query_id, "trades"
+        )
+
+    async def _download_report(
+        self, token: str, query_id: str, report_type: str
+    ) -> Tuple[dict[str, Any] | None, datetime | None]:
+        """Common method to download and process reports"""
         try:
-            report = FlexReport(
-                token=self.config.trades.token,
-                queryId=self.config.trades.query_id,
-            )
-            report.download(self.config.trades.token, self.config.trades.query_id)
+            report = FlexReport(token=token, queryId=query_id)
+            report.download(token, query_id)
 
-            if not report.data:
-                logger.error("No data received from IBKR Flex API")
-                return [], None
 
-            when_generated = self._save_report(report, "trades")
-            trades = self.parser.parse_executions(report.df("TradeConfirm"), source_id)
+            if not report.topics():
+                logger.error(f"No data received from IBKR Flex API for {report_type}")
+                return None, None
 
-            return trades, when_generated
+            when_generated, json_data = self._save_report(report, report_type)
+            return (json_data, when_generated)
         except Exception as e:
-            logger.error(f"Error fetching trades: {str(e)}")
-            return [], None
+            logger.error(f"Error fetching {report_type}: {str(e)}")
+            return (None, None)

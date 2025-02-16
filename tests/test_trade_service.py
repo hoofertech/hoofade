@@ -14,9 +14,10 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def trade_service(mock_source, mock_sink, db_session):
+async def trade_service(mock_source, mock_sink, db_session):
     sources = {"test": mock_source}
     sinks = {"test": mock_sink}
+    await mock_source.load_last_day_trades()
     return TradeService(
         sources,
         sinks,
@@ -42,7 +43,7 @@ async def test_get_new_trades(trade_service, sample_trade, db_session):
 @pytest.mark.asyncio
 async def test_get_new_trades_with_matching(trade_service, sample_trade, matching_trade):
     # Add both trades
-    trade_service.sources["test"].trades = [sample_trade, matching_trade]
+    trade_service.sources["test"].last_day_trades = [sample_trade, matching_trade]
 
     new_trades, _portfolio_matches = await trade_service.get_new_trades()
     assert len(new_trades) == 1

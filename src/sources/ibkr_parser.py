@@ -1,8 +1,6 @@
-import json
 import logging
 from datetime import datetime
 from decimal import Decimal
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
@@ -17,24 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class FlexReportParser:
-    @staticmethod
-    def load_latest_file(data_dir: Path, pattern: str, iter: int) -> Optional[Dict[str, Any]]:
-        """Load the most recent file matching the pattern from directory"""
-        files = sorted(data_dir.glob(pattern))
-        if not files:
-            return None
-
-        if iter >= len(files):
-            return None
-
-        latest_file = files[iter]
-        try:
-            with open(latest_file) as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Error loading file {latest_file}: {e}")
-            return None
-
     @staticmethod
     def parse_flex_datetime(datetime_str: str) -> Optional[datetime]:
         """Parse datetime from IBKR Flex format"""
@@ -185,12 +165,9 @@ class FlexReportParser:
                 )
             except Exception as e:
                 logger.warning(
-                    f"Error processing trade {item_dict.get('tradeID', 'unknown') if item_dict else 'unknown'}: {e}"
+                    f"Error processing trade {item_dict.get('tradeID', 'unknown') if item_dict else 'unknown'}: {e}",
+                    exc_info=True,
                 )
                 continue
 
         return executions
-
-    # Maintain backwards compatibility with existing method names
-    parse_executions_from_df = parse_executions
-    parse_executions_from_dict = parse_executions

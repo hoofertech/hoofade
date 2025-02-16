@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import List, Tuple
+from typing import Any, Dict, Tuple, override
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -17,26 +17,23 @@ from sources.base import TradeSource
 
 
 class MockTradeSource(TradeSource):
-    def __init__(self, source_id: str, trades: list[Trade]):
+    def __init__(self, source_id: str, trades: list[dict[str, Any]]):
         super().__init__(source_id)
         self.trades = trades
-        self.positions = []
 
-    async def load_positions(self) -> Tuple[bool, datetime | None]:
-        return True, None
+    @override
+    async def load_latest_positions_data(self) -> Tuple[Dict[str, Any] | None, datetime | None]:
+        return None, None
 
-    def get_positions(self) -> List[Position]:
-        return self.positions
+    @override
+    async def load_latest_trades_data(self) -> Tuple[list[dict[str, Any]] | None, datetime | None]:
+        return self.trades, None
 
-    async def load_last_day_trades(self) -> Tuple[bool, datetime | None]:
-        return True, None
-
-    def get_last_day_trades(self) -> List[Trade]:
-        return self.trades
-
+    @override
     def is_done(self) -> bool:
         return True
 
+    @override
     def get_sleep_time(self) -> int:
         return 1
 
@@ -107,6 +104,26 @@ def put_option_instrument():
 
 
 @pytest.fixture
+def sample_trade_data(test_timestamp, stock_instrument):
+    """Sample stock trade with fixed timestamp"""
+    return {
+        "accountId": "U7170000",
+        "currency": stock_instrument.currency,
+        "symbol": stock_instrument.symbol,
+        "listingExchange": "NYSE",
+        "expiry": "",
+        "putCall": "",
+        "tradeID": 470724576,
+        "dateTime": test_timestamp.strftime("%Y%m%d;%H%M%S"),
+        "buySell": "BUY",
+        "quantity": 100,
+        "price": 150.25,
+        "strike": "",
+        "underlyingSymbol": stock_instrument.symbol,
+    }
+
+
+@pytest.fixture
 def sample_trade(test_timestamp, stock_instrument):
     """Sample stock trade with fixed timestamp"""
     return Trade(
@@ -117,8 +134,28 @@ def sample_trade(test_timestamp, stock_instrument):
         currency="USD",
         timestamp=test_timestamp,
         source_id="test-source",
-        trade_id="test-exec-id-1",
+        trade_id="470724576",
     )
+
+
+@pytest.fixture
+def sample_option_trade_data(test_timestamp, call_option_instrument):
+    """Sample option trade with fixed timestamp"""
+    return {
+        "accountId": "U7170000",
+        "currency": call_option_instrument.currency,
+        "symbol": call_option_instrument.symbol,
+        "listingExchange": "CBOE",
+        "underlyingSymbol": call_option_instrument.symbol,
+        "expiry": call_option_instrument.expiry.strftime("%Y%m%d"),
+        "putCall": "C" if call_option_instrument.option_type == OptionType.CALL else "P",
+        "tradeID": 466929324,
+        "dateTime": test_timestamp.strftime("%Y%m%d;%H%M%S"),
+        "buySell": "BUY",
+        "quantity": 5,
+        "price": 3.50,
+        "strike": call_option_instrument.strike,
+    }
 
 
 @pytest.fixture
@@ -169,13 +206,13 @@ def matching_option_trade(test_timestamp, call_option_instrument):
 
 
 @pytest.fixture
-def mock_source(sample_trade):
-    return MockTradeSource("test-source", [sample_trade])
+def mock_source(sample_trade_data):
+    return MockTradeSource("test-source", [sample_trade_data])
 
 
 @pytest.fixture
-def mock_option_source(sample_option_trade):
-    return MockTradeSource("test-source", [sample_option_trade])
+def mock_option_source(sample_option_trade_data):
+    return MockTradeSource("test-source", [sample_option_trade_data])
 
 
 @pytest.fixture

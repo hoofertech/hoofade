@@ -539,6 +539,21 @@
       "quantity": -1,
       "price": 6.35,
       "strike": 12.5
+    },
+    {
+      "accountId": "U7170000",
+      "currency": "USD",
+      "symbol": "BABA",
+      "listingExchange": "NYSE",
+      "expiry": "",
+      "putCall": "",
+      "tradeID": 470724576,
+      "dateTime": "20250211;043344",
+      "buySell": "BUY",
+      "quantity": 80,
+      "price": 108.33,
+      "strike": "",
+      "underlyingSymbol": "BABA"
     }
   ],
   "FlexStatement": [

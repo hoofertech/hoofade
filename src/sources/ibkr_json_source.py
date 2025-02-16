@@ -1,14 +1,12 @@
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Optional, Tuple, override
 
 from config import default_timezone
-from models.position import Position
-from models.trade import Trade
 
 from .base import TradeSource
-from .ibkr_parser import FlexReportParser
 
 logger = logging.getLogger(__name__)
 
@@ -21,96 +19,74 @@ class JsonSource(TradeSource):
     ):
         super().__init__(source_id)
         self.data_dir = Path(data_dir)
-        self.positions: List[Position] = []
-        self.parser = FlexReportParser()
         self.trades_iter = 0
         self.positions_iter = 0
-        self.last_day_trades: List[Trade] = []
         self.json_done = False
 
-    async def load_positions(self) -> Tuple[bool, datetime | None]:
-        try:
-            positions_data, when_generated = JsonSource.load_latest_portfolio(
-                self.data_dir, self.positions_iter
-            )
-            self.positions_iter += 1
-            if not positions_data:
-                logger.error(f"No positions data found for {self.source_id}")
-                return False, None
-
-            self.positions = positions_data
-            return when_generated is not None, when_generated
-        except Exception as e:
-            logger.error(f"Error connecting to JSON source: {e}")
-            return False, None
-
-    @staticmethod
-    def load_latest_portfolio(data_dir: Path, iter: int) -> Tuple[List[Position], datetime | None]:
+    @override
+    async def load_latest_positions_data(self) -> Tuple[dict[str, Any] | None, datetime | None]:
         """Load the most recent portfolio file"""
-        data = FlexReportParser.load_latest_file(data_dir, "portfolio_*.json", iter)
+        data_dir = self.data_dir
+        iter = self.positions_iter
+        data = JsonSource.load_latest_file(data_dir, "portfolio_*.json", iter)
         if not data:
-            return [], None
+            return None, None
 
-        report_time_str = data.get("whenGenerated")
+        flex_stmt = data.get("FlexStatement")
         report_time = None
-        if report_time_str:
-            report_time = datetime.strptime(report_time_str, "%Y%m%d;%H%M%S").replace(
-                tzinfo=default_timezone()
-            )
+        if flex_stmt:
+            report_time_str = flex_stmt[0].get("whenGenerated")
+            if report_time_str:
+                report_time = datetime.strptime(report_time_str, "%Y%m%d;%H%M%S").replace(
+                    tzinfo=default_timezone()
+                )
 
-        return FlexReportParser.parse_positions(data, report_time), report_time
-
-    def get_positions(self) -> List[Position]:
-        """Get current positions"""
-        return self.positions
-
-    async def load_last_day_trades(self) -> Tuple[bool, datetime | None]:
-        try:
-            trades_data = JsonSource.load_latest_trades(self.data_dir, self.trades_iter)
-            self.trades_iter += 1
-
-            if trades_data is None:
-                self.json_done = True
-                return (True, None)
-
-            parsed_trades = self.parser.parse_executions_from_dict(trades_data, self.source_id)
-            if not parsed_trades:
-                return (True, None)
-
-            since = self.get_min_datetime_for_last_day(parsed_trades)
-            self.last_day_trades = [trade for trade in parsed_trades if trade.timestamp >= since]
-            logger.info(f"Loaded {len(self.last_day_trades)} trades for {self.source_id}")
-
-            # Get the latest timestamp from the trades
-            latest_timestamp = (
-                max(trade.timestamp for trade in self.last_day_trades)
-                if self.last_day_trades
-                else None
-            )
-            return (True, latest_timestamp)
-
-        except Exception as e:
-            logger.error(f"Error fetching trades: {e}")
-            return (False, None)
+        self.positions_iter += 1
+        return data, report_time
 
     @staticmethod
-    def load_latest_trades(data_dir: Path, iter: int) -> List[Dict[str, Any]] | None:
-        """Load the most recent trades file"""
-        data = FlexReportParser.load_latest_file(data_dir, "trades_*.json", iter)
-        if not data:
+    def load_latest_file(data_dir: Path, pattern: str, iter: int) -> Optional[dict[str, Any]]:
+        """Load the most recent file matching the pattern from directory"""
+        files = sorted(data_dir.glob(pattern))
+        if not files:
             return None
-        return data.get("TradeConfirm", [])
 
-    def get_last_day_trades(self) -> List[Trade]:
-        return self.last_day_trades
+        if iter >= len(files):
+            return None
 
-    @staticmethod
-    def get_min_datetime_for_last_day(trades: List[Trade]) -> datetime:
-        last_day_in_data = max(trade.timestamp for trade in trades)
-        return last_day_in_data.replace(hour=0, minute=0, second=0, microsecond=0)
+        latest_file = files[iter]
+        try:
+            with open(latest_file) as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading file {latest_file}: {e}")
+            return None
 
+    @override
+    async def load_latest_trades_data(self) -> Tuple[list[dict[str, Any]] | None, datetime | None]:
+        """Load the most recent trades file"""
+        data_dir = self.data_dir
+        iter = self.trades_iter
+        data = JsonSource.load_latest_file(data_dir, "trades_*.json", iter)
+        self.trades_iter += 1
+        if not data:
+            self.json_done = True
+            return None, None
+
+        stmts = data.get("FlexStatement", [])
+        report_time = None
+        if stmts:
+            report_time_str = stmts[0].get("whenGenerated")
+            if report_time_str:
+                report_time = datetime.strptime(report_time_str, "%Y%m%d;%H%M%S").replace(
+                    tzinfo=default_timezone()
+                )
+        return data.get("TradeConfirm", []), report_time
+
+    @override
     def is_done(self) -> bool:
         return self.json_done
 
+    @override
     def get_sleep_time(self) -> int:
         return 1
