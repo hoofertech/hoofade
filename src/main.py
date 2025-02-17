@@ -6,20 +6,14 @@ from typing import Dict
 
 import uvicorn
 from dotenv import load_dotenv
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 from config import (
-    get_db_url,
     get_sink_configs,
     get_source_configs,
     get_web_config,
 )
+from database import Database, create_db
 from formatters.trade import TradeFormatter
-from models.db_trade import Base
 from services.position_service import PositionService
 from services.trade_service import TradeService
 from sinks.base import MessageSink
@@ -63,7 +57,7 @@ def create_sources() -> Dict[str, TradeSource]:
 
 
 def create_sinks(
-    async_session: async_sessionmaker[AsyncSession],
+    db: Database,
 ) -> Dict[str, MessageSink]:
     """Create message sinks from configuration"""
     sinks = {}
@@ -82,7 +76,7 @@ def create_sinks(
         elif config["type"] == "cli":
             sinks[sink_id] = CLISink(sink_id=config["sink_id"])
         elif config["type"] == "database":
-            sinks[sink_id] = DatabaseSink(sink_id=config["sink_id"], async_session=async_session)
+            sinks[sink_id] = DatabaseSink(sink_id=config["sink_id"], db=db)
 
     return sinks
 
@@ -92,7 +86,7 @@ class TradePublisher:
         self,
         sources: Dict[str, TradeSource],
         sinks: Dict[str, MessageSink],
-        db: AsyncSession,
+        db: Database,
         formatter: TradeFormatter,
     ):
         self.position_service = PositionService(sources, sinks, db)
@@ -193,25 +187,6 @@ class TradePublisher:
             await asyncio.sleep(max_sleep)
 
 
-async def create_db_maker() -> async_sessionmaker[AsyncSession]:
-    logger.info("Creating database session: %s", get_db_url())
-    """Create database session"""
-    engine = create_async_engine(get_db_url())
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    # Use async_sessionmaker instead of sessionmaker
-    async_session = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    # Create and return a new session
-    return async_session
-
-
 async def run_web_server():
     web_config = get_web_config()
     config = uvicorn.Config(
@@ -233,8 +208,8 @@ async def run_trade_publisher(sources, sinks, db, formatter):
         await db.close()
 
 
-def start_web_server(db_maker):
-    init_app(db_maker)
+def start_web_server(db):
+    init_app(db)
     asyncio.run(run_web_server())
 
 
@@ -242,13 +217,12 @@ async def main():
     logging.basicConfig(level=logging.INFO)
 
     sources = create_sources()
-    db_maker = await create_db_maker()
-    sinks = create_sinks(db_maker)
+    db = await create_db()
+    sinks = create_sinks(db)
     formatter = TradeFormatter()
-    db = db_maker()
 
     # Start web server in a separate thread
-    web_thread = threading.Thread(target=start_web_server, args=(db_maker,), daemon=True)
+    web_thread = threading.Thread(target=start_web_server, args=(db,), daemon=True)
     web_thread.start()
 
     # Run trade publisher in main thread

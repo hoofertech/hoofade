@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import cast
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Enum, Numeric, String
+from sqlalchemy import Column, Date, DateTime, Enum, Numeric, String
 from sqlalchemy.orm import declarative_base
 
 from models.instrument import Instrument, InstrumentType, OptionType
@@ -25,7 +25,6 @@ class DBTrade(Base):
     currency: Column[str] = Column(String, nullable=False)
     timestamp: Column[datetime] = Column(DateTime, nullable=False)
     source_id: Column[str] = Column(String, nullable=False)
-    matched: Column[bool] = Column(Boolean, default=False)
 
     # Option-specific fields
     option_type: Column[str] = Column(Enum(OptionType, name="option_type"), nullable=True)
@@ -96,3 +95,23 @@ class DBTrade(Base):
             setattr(db_trade, "expiry", trade.instrument.option_details.expiry)
 
         return db_trade
+
+    def to_dict(self):
+        return {
+            "trade_id": self.trade_id,
+            "symbol": self.symbol,
+            "instrument_type": self.instrument_type.value,
+            "quantity": str(self.quantity),
+            "price": str(self.price),
+            "side": self.side,
+            "currency": self.currency,
+            "timestamp": self.timestamp,
+            "source_id": self.source_id,
+            "option_type": self.option_type.value if self.option_type is not None else None,
+            "strike": str(self.strike) if self.strike is not None else None,
+            "expiry": self.expiry,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "DBTrade":
+        return cls(**data)

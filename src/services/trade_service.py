@@ -1,9 +1,7 @@
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from database import Database
 from formatters.trade import TradeFormatter
 from models.db_trade import DBTrade
 from models.message import Message
@@ -26,7 +24,7 @@ class TradeService:
         self,
         sources: Dict[str, TradeSource],
         sinks: Dict[str, MessageSink],
-        db: AsyncSession,
+        db: Database,
         formatter: TradeFormatter,
         position_service: PositionService,
     ):
@@ -134,33 +132,17 @@ class TradeService:
 
     async def _is_trade_published(self, trade: Trade) -> bool:
         """Check if a trade has already been published."""
-        query = select(DBTrade).where(DBTrade.trade_id == trade.trade_id)
-        result = await self.db.execute(query)
-        return result.scalar_one_or_none() is not None
+        return await self.db.get_trade(trade.trade_id) is not None
 
-    async def _save_trade(self, trade: Trade, matching_trade: Optional[DBTrade] = None) -> None:
+    async def _save_trade(self, trade: Trade) -> None:
         """Save a trade to the database and update matching trade if exists."""
         try:
             # Convert domain trade to DB model
             db_trade = DBTrade.from_domain(trade)
 
-            # Set matched flag if there's a matching trade
-            if matching_trade:
-                # Update both trades' matched status in a single transaction
-                stmt = (
-                    update(DBTrade)
-                    .where(DBTrade.trade_id.in_([trade.trade_id, matching_trade.trade_id]))
-                    .values(matched=True)
-                )
-                await self.db.execute(stmt)
-
             # Add new trade to session
-            self.db.add(db_trade)
-
-            # Commit changes
-            await self.db.commit()
+            await self.db.save_trade(db_trade)
 
         except Exception as e:
             logger.error(f"Error saving trade: {str(e)}")
-            await self.db.rollback()
             raise e

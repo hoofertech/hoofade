@@ -1,15 +1,13 @@
 import logging
 import os
 from datetime import datetime
-from typing import AsyncGenerator, Optional
+from typing import Optional
 
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from models.db_message import DBMessage
+from database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -20,22 +18,12 @@ static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Will be set when initializing the app
-async_session_maker: Optional[async_sessionmaker[AsyncSession]] = None
+db: Optional[Database] = None
 
 
-def init_app(session_maker: async_sessionmaker[AsyncSession]):
-    global async_session_maker
-    async_session_maker = session_maker
-
-
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    if async_session_maker is None:
-        raise RuntimeError("Database session maker not initialized")
-    async with async_session_maker() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+def init_app(database: Database):
+    global db
+    db = database
 
 
 @app.get("/")
@@ -45,43 +33,22 @@ async def read_root():
 
 @app.get("/api/messages")
 async def get_messages(
-    session: AsyncSession = Depends(get_session),
     limit: int = 20,
     before: Optional[datetime] = None,
     after: Optional[datetime] = None,
     type: Optional[str] = None,
 ):
+    if db is None:
+        raise RuntimeError("Database not initialized")
+
     try:
-        query = select(DBMessage).order_by(DBMessage.timestamp.desc())
-
-        if before:
-            query = query.where(DBMessage.timestamp < before)
-        elif after:
-            query = query.where(DBMessage.timestamp > after)
-
-        if type and type != "all":
-            # Match the exact message_type from the database
-            if type.lower() == "trade":
-                query = query.where(DBMessage.message_type == "trade_batch")
-            elif type.lower() == "portfolio":
-                query = query.where(DBMessage.message_type == "portfolio")
-
-        query = query.limit(limit)
-        result = await session.execute(query)
-        messages = result.scalars().all()
-
-        return {
-            "messages": [
-                {
-                    "id": msg.id,
-                    "content": msg.content,
-                    "timestamp": msg.timestamp,
-                    "metadata": msg.message_metadata,
-                    "message_type": msg.message_type,
-                }
-                for msg in messages
-            ]
-        }
+        messages = await db.get_messages(
+            limit=limit,
+            before=before,
+            after=after,
+            message_type=type,
+        )
+        return {"messages": messages}
     except Exception as e:
         logger.error(f"Error fetching messages: {str(e)}")
         return {"error": str(e)}

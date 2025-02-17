@@ -2,12 +2,9 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional, cast
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from config import default_timezone
+from database import Database
 from formatters.portfolio import PortfolioFormatter
-from models.db_portfolio import DBPortfolio
 from models.instrument import InstrumentType
 from models.position import Position
 from services.trade_processor import ProcessingResult, ProfitTaker
@@ -22,7 +19,7 @@ class PositionService:
         self,
         sources: Dict[str, TradeSource],
         sinks: Dict[str, MessageSink],
-        db: AsyncSession,
+        db: Database,
     ):
         self.sources = sources
         self.sinks = sinks
@@ -68,19 +65,17 @@ class PositionService:
     async def _get_last_portfolio_post(self, source_id: str) -> Optional[datetime]:
         """Get the last portfolio post timestamp from DB"""
         try:
-            query = select(DBPortfolio).where(DBPortfolio.source_id == source_id)
-            result = await self.db.execute(query)
-            record = result.scalar_one_or_none()
+            last_post = await self.db.get_last_portfolio_post(source_id)
 
-            if record is None:
+            if last_post is None:
                 logger.warning(f"No portfolio post found for source_id: {source_id}")
                 return None
 
             # Ensure the timestamp is timezone-aware
-            if record.last_post.tzinfo is None:
-                record.last_post = record.last_post.replace(tzinfo=default_timezone())
+            if last_post.tzinfo is None:
+                last_post = last_post.replace(tzinfo=default_timezone())
 
-            return cast(datetime, record.last_post)
+            return cast(datetime, last_post)
         except Exception as e:
             logger.error(f"Error getting last portfolio post: {str(e)}")
             return None
@@ -88,12 +83,9 @@ class PositionService:
     async def _save_portfolio_post(self, timestamp: datetime):
         """Save or update the last portfolio post timestamp"""
         try:
-            portfolio = DBPortfolio(last_post=timestamp, source_id="all")
-            await self.db.merge(portfolio)
-            await self.db.commit()
+            await self.db.save_portfolio_post(source_id="all", timestamp=timestamp)
         except Exception as e:
             logger.error(f"Error saving portfolio post: {str(e)}")
-            await self.db.rollback()
 
     async def apply_new_trades(self, new_trade: ProcessingResult, positions: List[Position]):
         """
