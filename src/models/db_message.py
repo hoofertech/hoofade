@@ -14,7 +14,7 @@ class DBMessage:
     timestamp: datetime
     message_metadata: str
     source_id: str
-    message_type: str  # 'trade' or 'portfolio'
+    message_type: str  # 'trd' or 'pfl'
 
     def to_dict(self):
         return {

@@ -153,7 +153,7 @@ class Database:
                     """
                     DELETE FROM messages
                     WHERE timestamp > ?
-                    AND message_type = 'portfolio'
+                    AND message_type = 'pfl'
                 """,
                     (format_datetime(timestamp),),
                 )
@@ -201,7 +201,7 @@ class Database:
                     if message_type.lower() == "trade":
                         query += " AND message_type = 'trd'"
                     elif message_type.lower() == "pfl":
-                        query += " AND message_type = 'portfolio'"
+                        query += " AND message_type = 'pfl'"
 
                 query += " ORDER BY timestamp DESC LIMIT ?"
                 params.append(limit)
