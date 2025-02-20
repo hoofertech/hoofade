@@ -3,10 +3,9 @@ from decimal import Decimal
 from typing import Any, Dict, Tuple, override
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from config import default_timezone
-from models.db_trade import Base
+from database import Database
 from models.instrument import Instrument, OptionType
 from models.message import Message
 from models.position import Position
@@ -54,20 +53,17 @@ class MockMessageSink(MessageSink):
 @pytest.fixture
 async def db_session():
     """Create in-memory SQLite database for testing."""
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-    )
+    import os
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    if os.path.exists("testdb.db"):
+        os.remove("testdb.db")
+    engine = Database("sqlite+aiosqlite:///testdb.db")
 
-    async_session = async_sessionmaker(engine, expire_on_commit=False)
+    await engine.initialize()
 
-    async with async_session() as session:
-        yield session
-        await session.rollback()
-        await session.close()
+    yield engine
+
+    os.remove("testdb.db")
 
 
 @pytest.fixture

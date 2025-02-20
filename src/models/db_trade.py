@@ -1,35 +1,31 @@
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from typing import cast
 
-from sqlalchemy import Column, Date, DateTime, Enum, Numeric, String
-from sqlalchemy.orm import declarative_base
-
 from models.instrument import Instrument, InstrumentType, OptionType
 from models.trade import Trade
+from utils.datetime_utils import format_date, format_datetime
 
-Base = declarative_base()
 
-
-class DBTrade(Base):
+@dataclass
+class DBTrade:
     __tablename__ = "trades"
 
-    trade_id: Column[str] = Column(String, primary_key=True)
-    symbol: Column[str] = Column(String, nullable=False)
-    instrument_type: Column[str] = Column(
-        Enum(InstrumentType, name="instrument_type"), nullable=False
-    )
-    quantity: Column[Decimal] = Column(Numeric, nullable=False)
-    price: Column[Decimal] = Column(Numeric, nullable=False)
-    side: Column[str] = Column(String, nullable=False)
-    currency: Column[str] = Column(String, nullable=False)
-    timestamp: Column[datetime] = Column(DateTime, nullable=False)
-    source_id: Column[str] = Column(String, nullable=False)
+    trade_id: str
+    symbol: str
+    instrument_type: str
+    quantity: Decimal
+    price: Decimal
+    side: str
+    currency: str
+    timestamp: datetime
+    source_id: str | None = None
 
     # Option-specific fields
-    option_type: Column[str] = Column(Enum(OptionType, name="option_type"), nullable=True)
-    strike: Column[Decimal] = Column(Numeric, nullable=True)
-    expiry: Column[date] = Column(Date, nullable=True)
+    option_type: str | None = None
+    strike: Decimal | None = None
+    expiry: date | None = None
 
     def to_domain(self) -> Trade:
         # Change the comparison to use string representation for instrument type
@@ -72,7 +68,7 @@ class DBTrade(Base):
         db_trade = cls(
             trade_id=trade.trade_id,
             symbol=trade.instrument.symbol,
-            instrument_type=trade.instrument.type,
+            instrument_type=trade.instrument.type.value,
             quantity=trade.quantity,
             price=trade.price,
             side=trade.side,
@@ -89,7 +85,7 @@ class DBTrade(Base):
             setattr(
                 db_trade,
                 "option_type",
-                trade.instrument.option_details.option_type,
+                trade.instrument.option_details.option_type.value,
             )
             setattr(db_trade, "strike", trade.instrument.option_details.strike)
             setattr(db_trade, "expiry", trade.instrument.option_details.expiry)
@@ -100,16 +96,16 @@ class DBTrade(Base):
         return {
             "trade_id": self.trade_id,
             "symbol": self.symbol,
-            "instrument_type": self.instrument_type.value,
+            "instrument_type": self.instrument_type,
             "quantity": str(self.quantity),
             "price": str(self.price),
             "side": self.side,
             "currency": self.currency,
-            "timestamp": self.timestamp,
+            "timestamp": format_datetime(self.timestamp),
             "source_id": self.source_id,
-            "option_type": self.option_type.value if self.option_type is not None else None,
+            "option_type": self.option_type,
             "strike": str(self.strike) if self.strike is not None else None,
-            "expiry": self.expiry,
+            "expiry": format_date(self.expiry),
         }
 
     @classmethod

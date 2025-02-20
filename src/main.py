@@ -92,6 +92,7 @@ class TradePublisher:
         self.position_service = PositionService(sources, sinks, db)
         self.trade_service = TradeService(sources, sinks, db, formatter, self.position_service)
         self.sources = sources
+        self.db = db
 
     async def run(self):
         """Main loop to process trades periodically"""
@@ -144,13 +145,16 @@ class TradePublisher:
             logger.info(f"Loaded {len(new_trades)} trades")
 
             if should_post_portfolio and now is not None:
-                max_new_trade_timestamp = (
+                last_trade_timestamp = (
                     max(trade.timestamp for trade in new_trades) - timedelta(seconds=1)
                     if new_trades
                     else now
                 )
+
+                # Remove any portfolio published with a greater timestamp
+                await self.db.remove_future_portfolio_messages(last_trade_timestamp)
                 await self.position_service.publish_portfolio(
-                    self.position_service.merged_positions, max_new_trade_timestamp, now
+                    self.position_service.merged_positions, last_trade_timestamp, now
                 )
 
             if new_trades:

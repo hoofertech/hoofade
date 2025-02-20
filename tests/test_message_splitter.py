@@ -42,7 +42,7 @@ def test_portfolio_message_split():
     message = Message(
         content=content,
         timestamp=datetime.now(default_timezone()),
-        metadata={"type": "portfolio"},
+        metadata={"type": "pfl"},
     )
 
     tweets = MessageSplitter.split_to_tweets(message)
@@ -84,7 +84,7 @@ def test_no_record_splitting():
     message = Message(
         content=content,
         timestamp=datetime.now(default_timezone()),
-        metadata={"type": "portfolio"},
+        metadata={"type": "pfl"},
     )
 
     tweets = MessageSplitter.split_to_tweets(message)

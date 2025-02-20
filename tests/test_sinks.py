@@ -52,7 +52,7 @@ async def test_twitter_sink_rate_limit(twitter_sink):
         message1 = Message(
             content="Test message 1",
             timestamp=datetime.now(default_timezone()),
-            metadata={"type": "trade_batch"},
+            metadata={"type": "trd"},
         )
         assert await twitter_sink.publish(message1)
 
@@ -60,7 +60,7 @@ async def test_twitter_sink_rate_limit(twitter_sink):
         message2 = Message(
             content="Test message 2",
             timestamp=datetime.now(default_timezone()),
-            metadata={"type": "trade_batch"},
+            metadata={"type": "trd"},
         )
         assert not await twitter_sink.publish(message2)
 

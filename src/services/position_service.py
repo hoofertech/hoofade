@@ -36,20 +36,31 @@ class PositionService:
     ):
         message = self.portfolio_formatter.format_portfolio(positions, timestamp)
 
-        publish_success = True
-        for sink in self.sinks.values():
-            if sink.can_publish():
-                if not await sink.publish(message):
-                    publish_success = False
-                    logger.error(f"Failed to publish portfolio to {sink.sink_id}")
+        # Check if the last post was a portfolio post
+        last_message = await self.db.get_last_message()
+        if (
+            last_message
+            and last_message.message_type == "pfl"
+            and last_message.content.split("\n", 1)[1] == message.content.split("\n", 1)[1]
+        ):
+            logger.info("Last message was a portfolio post with the same content. Skipping.")
+        else:
+            publish_success = True
+            for sink in self.sinks.values():
+                if sink.can_publish():
+                    if not await sink.publish(message):
+                        publish_success = False
+                        logger.error(f"Failed to publish portfolio to {sink.sink_id}")
 
-        if publish_success and save_portfolio_post:
-            # Save portfolio post for all sources since it's consolidated
-            await self._save_portfolio_post(publish_timestamp)
-            logger.info(f"Successfully published consolidated portfolio at {publish_timestamp}")
+            if publish_success and save_portfolio_post:
+                # Save portfolio post for all sources since it's consolidated
+                await self._save_portfolio_post(publish_timestamp)
+                logger.info(
+                    f"Successfully published consolidated portfolio at {publish_timestamp}"
+                )
 
     async def should_post_portfolio(self, now: datetime) -> bool:
-        """Check if we should post portfolio based on last post time"""
+        """Check if we should post portfolio based on last post time and type"""
         last_post = await self._get_last_portfolio_post("all")
         logger.info(f"Last portfolio post: {last_post}")
         if last_post is None:
@@ -99,8 +110,13 @@ class PositionService:
         for position in positions:
             if position.instrument == trade.instrument:
                 # Calculate the matched quantity
-                matched_quantity = trade.quantity
-                position.quantity += abs(matched_quantity) * (-1 if trade.side == "SELL" else 1)
+                matched_quantity = (
+                    -abs(trade.quantity) if trade.side == "SELL" else abs(trade.quantity)
+                )
+                logger.info(
+                    f"Matched quantity: {matched_quantity} ({trade.side}) for {trade.instrument}"
+                )
+                position.quantity += matched_quantity
 
                 # If position is fully closed, remove it
                 if position.quantity == 0:

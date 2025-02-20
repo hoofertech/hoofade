@@ -13,7 +13,7 @@ class PortfolioFormatter:
             return Message(
                 content="No positions",
                 timestamp=timestamp_date,
-                metadata={"type": "portfolio"},
+                metadata={"type": "pfl"},
             )
 
         # Format the date in a readable format
@@ -104,5 +104,5 @@ class PortfolioFormatter:
         return Message(
             content="\n".join(content),
             timestamp=timestamp_date,
-            metadata={"type": "portfolio"},
+            metadata={"type": "pfl"},
         )

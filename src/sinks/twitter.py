@@ -37,12 +37,12 @@ class TwitterSink(MessageSink):
     def can_publish(self, message_type: str | None = None) -> bool:
         now = datetime.now(default_timezone())
         logger.info(f"Checking if we can publish: {message_type}")
-        if message_type == "portfolio":
+        if message_type == "pfl":
             logger.info(
                 f"Checking if we can publish portfolio: {now - self.last_portfolio_publish}"
             )
             return (now - self.last_portfolio_publish).total_seconds() >= 1800  # 30 minutes
-        elif message_type == "trade_batch":
+        elif message_type == "trd":
             logger.info(f"Checking if we can publish trade batch: {now - self.last_trade_publish}")
             return (now - self.last_trade_publish).total_seconds() >= 300  # 5 minutes
         return True  # For other message types
@@ -79,9 +79,9 @@ class TwitterSink(MessageSink):
 
             # Update the appropriate last publish time
             now = datetime.now(default_timezone())
-            if message_type == "portfolio":
+            if message_type == "pfl":
                 self.last_portfolio_publish = now
-            elif message_type == "trade_batch":
+            elif message_type == "trd":
                 self.last_trade_publish = now
 
             return True

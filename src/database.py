@@ -10,6 +10,7 @@ from config import (
 )
 from models.db_message import DBMessage
 from models.db_trade import DBTrade
+from utils.datetime_utils import format_datetime, parse_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +128,7 @@ class Database:
                 "SELECT last_post FROM portfolio_posts WHERE source_id = ?", (source_id,)
             )
             row = await cursor.fetchone()
-            return datetime.fromisoformat(row[0]) if row else None
+            return parse_datetime(row[0]) if row else None
 
     async def save_portfolio_post(self, source_id: str, timestamp: datetime) -> bool:
         try:
@@ -137,12 +138,29 @@ class Database:
                     INSERT OR REPLACE INTO portfolio_posts (source_id, last_post)
                     VALUES (?, ?)
                 """,
-                    (source_id, timestamp.isoformat()),
+                    (source_id, format_datetime(timestamp)),
                 )
                 await db.commit()
                 return True
         except Exception as e:
             logger.error(f"Error saving portfolio post: {e}", exc_info=True)
+            return False
+
+    async def remove_future_portfolio_messages(self, timestamp: datetime) -> bool:
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(
+                    """
+                    DELETE FROM messages
+                    WHERE timestamp > ?
+                    AND message_type = 'portfolio'
+                """,
+                    (format_datetime(timestamp),),
+                )
+                await db.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Error removing future portfolio messages: {e}", exc_info=True)
             return False
 
     async def close(self):
@@ -174,15 +192,15 @@ class Database:
 
                 if before:
                     query += " AND timestamp < ?"
-                    params.append(before.isoformat())
+                    params.append(format_datetime(before))
                 elif after:
                     query += " AND timestamp > ?"
-                    params.append(after.isoformat())
+                    params.append(format_datetime(after))
 
                 if message_type and message_type != "all":
                     if message_type.lower() == "trade":
-                        query += " AND message_type = 'trade_batch'"
-                    elif message_type.lower() == "portfolio":
+                        query += " AND message_type = 'trd'"
+                    elif message_type.lower() == "pfl":
                         query += " AND message_type = 'portfolio'"
 
                 query += " ORDER BY timestamp DESC LIMIT ?"
@@ -195,7 +213,7 @@ class Database:
                     {
                         "id": row["id"],
                         "content": row["content"],
-                        "timestamp": datetime.fromisoformat(row["timestamp"]),
+                        "timestamp": parse_datetime(row["timestamp"]),
                         "metadata": json.loads(row["message_metadata"]),
                         "message_type": row["message_type"],
                     }
@@ -203,6 +221,27 @@ class Database:
                 ]
         except Exception as e:
             logger.error(f"Error fetching messages: {e}", exc_info=True)
+            raise
+
+    async def get_last_message(self) -> Optional[DBMessage]:
+        """Get the last message"""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                db.row_factory = aiosqlite.Row
+
+                cursor = await db.execute(
+                    """
+                    SELECT id, content, timestamp, message_metadata,
+                           source_id, message_type
+                    FROM messages
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                """
+                )
+                row = await cursor.fetchone()
+                return DBMessage.from_dict(dict(row)) if row else None
+        except Exception as e:
+            logger.error(f"Error fetching last message: {e}", exc_info=True)
             raise
 
 

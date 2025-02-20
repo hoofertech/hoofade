@@ -28,7 +28,7 @@ async def test_publish_portfolio(
     lines = message.content.split("\n")
     expected_date = test_timestamp.strftime("%d %b %Y %H:%M").upper()
     assert lines[0] == f"Portfolio on {expected_date}"
-    assert message.metadata["type"] == "portfolio"
+    assert message.metadata["type"] == "pfl"
 
 
 @pytest.mark.asyncio

@@ -1,13 +1,13 @@
 import logging
 import os
-from datetime import datetime
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from database import Database
+from utils.datetime_utils import parse_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -33,22 +33,33 @@ async def read_root():
 
 @app.get("/api/messages")
 async def get_messages(
-    limit: int = 20,
-    before: Optional[datetime] = None,
-    after: Optional[datetime] = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    before: Optional[str] = None,
+    after: Optional[str] = None,
     type: Optional[str] = None,
 ):
+    logger.info(
+        f"Getting messages with limit: {limit}, before: {before}, after: {after}, type: {type}"
+    )
     if db is None:
         raise RuntimeError("Database not initialized")
 
     try:
+        # Parse datetime parameters
+        before_dt = parse_datetime(before)
+        after_dt = parse_datetime(after)
+
         messages = await db.get_messages(
             limit=limit,
-            before=before,
-            after=after,
+            before=before_dt,
+            after=after_dt,
             message_type=type,
         )
+
         return {"messages": messages}
+    except ValueError as e:
+        logger.error(f"Datetime parsing error: {str(e)}")
+        return {"error": f"Invalid datetime format: {str(e)}"}, 422
     except Exception as e:
         logger.error(f"Error fetching messages: {str(e)}")
-        return {"error": str(e)}
+        return {"error": str(e)}, 500

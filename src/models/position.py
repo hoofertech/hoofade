@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any, Dict
 
 from models.instrument import Instrument, InstrumentType
+from utils.datetime_utils import format_date
 
 
 @dataclass
@@ -84,12 +85,10 @@ class Position:
             and self.instrument.option_details is not None
         ):
             opt = self.instrument.option_details
-            base_dict.update(
-                {
-                    "strike": str(opt.strike),
-                    "expiry": opt.expiry.isoformat(),
-                    "option_type": opt.option_type.value,
-                }
-            )
+            expiry = format_date(opt.expiry)
+            if expiry:
+                base_dict["expiry"] = expiry
+            base_dict["strike"] = str(opt.strike)
+            base_dict["option_type"] = opt.option_type.value
 
         return base_dict

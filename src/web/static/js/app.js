@@ -33,6 +33,7 @@ class MessageFeed {
       this.messageType = this.messageTypeSelect.value;
       this.messages = [];
       this.lastTimestamp = null;
+      console.log("last timestamp 2: null");
       this.hasMoreMessages = true;
       this.firstLoadedTimestamp = null;
       this.newMessagesCount = 0;
@@ -73,6 +74,15 @@ class MessageFeed {
     return scrollPosition >= scrollThreshold;
   }
 
+  formatDateToISO(date) {
+    // Ensure we have a Date object
+    if (typeof date === 'string') {
+      date = new Date(date);
+    }
+
+    return date.toISOString();
+  }
+
   async loadMessages() {
     if (this.loading || !this.hasMoreMessages) return;
 
@@ -82,7 +92,7 @@ class MessageFeed {
     try {
       let url = '/api/messages?limit=20';
       if (this.lastTimestamp) {
-        url += `&before=${this.lastTimestamp}`;
+        url += `&before=${this.formatDateToISO(this.lastTimestamp)}`;
       }
       if (this.messageType !== 'all') {
         url += `&type=${this.messageType}`;
@@ -98,6 +108,7 @@ class MessageFeed {
         this.messages.push(...data.messages);
         this.renderMessages(data.messages);
         this.lastTimestamp = data.messages[data.messages.length - 1].timestamp;
+        console.log("last timestamp 3: ", this.formatDateToISO(this.lastTimestamp));
       } else {
         this.hasMoreMessages = false;
       }
@@ -160,13 +171,13 @@ class MessageFeed {
 
     // Extract timestamp from message content for trades
     let displayTimestamp;
-    if (message.message_type === 'trade_batch') {
+    if (message.message_type === 'trd') {
       // Extract date from first line of trade message (format: "Trades on DD MMM YYYY HH:MM")
       const match = message.content.match(/Trades on (\d{2} [A-Z]{3} \d{4} \d{2}:\d{2})/);
       if (match) {
         displayTimestamp = new Date(match[1]).toLocaleString();
       }
-    } else if (message.message_type === 'portfolio') {
+    } else if (message.message_type === 'pfl') {
       // Extract date from first line of portfolio message (format: "Portfolio on DD MMM YYYY HH:MM")
       const match = message.content.match(/Portfolio on (\d{2} [A-Z]{3} \d{4} \d{2}:\d{2})/);
       if (match) {
@@ -181,8 +192,10 @@ class MessageFeed {
 
     // Determine display message type
     let displayType = message.message_type;
-    if (message.message_type === 'trade_batch') {
+    if (message.message_type === 'trd') {
       displayType = 'trade';
+    } else if (message.message_type === 'pfl') {
+      displayType = 'portfolio';
     }
 
     div.innerHTML = `
@@ -241,7 +254,7 @@ class MessageFeed {
     try {
       let url = '/api/messages?limit=20';
       if (this.firstLoadedTimestamp) {
-        url += `&after=${this.firstLoadedTimestamp}`;
+        url += `&after=${this.formatDateToISO(this.firstLoadedTimestamp)}`;
       }
       if (this.messageType !== 'all') {
         url += `&type=${this.messageType}`;

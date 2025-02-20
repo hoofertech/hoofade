@@ -68,7 +68,7 @@ async def test_publish_trades(trade_service, mock_sink, sample_trade):
     assert lines[0] == f"Trades on {expected_date}"
     assert lines[1] == ""
     assert "🚨 BUY  $AAPL 100@$150.25" in lines[2]
-    assert message.metadata["type"] == "trade_batch"
+    assert message.metadata["type"] == "trd"
 
 
 @pytest.mark.asyncio

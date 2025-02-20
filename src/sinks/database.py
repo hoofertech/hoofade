@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid
 
@@ -24,7 +25,7 @@ class DatabaseSink(MessageSink):
                 id=str(uuid.uuid4()),
                 content=message.content,
                 timestamp=message.timestamp,
-                message_metadata=message.metadata,
+                message_metadata=json.dumps(message.metadata),
                 source_id=self.sink_id,
                 message_type=message.metadata.get("type", "unknown"),
             )

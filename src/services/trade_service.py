@@ -115,7 +115,7 @@ class TradeService:
         combined_message = Message(
             content="\n".join(content),
             timestamp=last_trade_timestamp,
-            metadata={"type": "trade_batch"},
+            metadata={"type": "trd"},
         )
 
         publish_success = True

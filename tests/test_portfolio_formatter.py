@@ -84,11 +84,11 @@ def test_format_portfolio(portfolio_formatter, sample_positions):
     assert "$TWLO 31JAN25 $150   C -1@$1.8" in lines[8]
 
     # Check metadata
-    assert message.metadata["type"] == "portfolio"
+    assert message.metadata["type"] == "pfl"
 
 
 def test_empty_portfolio(portfolio_formatter):
     timestamp = datetime.now(default_timezone())
     message = portfolio_formatter.format_portfolio([], timestamp)
     assert message.content == "No positions"
-    assert message.metadata["type"] == "portfolio"
+    assert message.metadata["type"] == "pfl"
