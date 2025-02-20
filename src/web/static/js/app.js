@@ -33,7 +33,6 @@ class MessageFeed {
       this.messageType = this.messageTypeSelect.value;
       this.messages = [];
       this.lastTimestamp = null;
-      console.log("last timestamp 2: null");
       this.hasMoreMessages = true;
       this.firstLoadedTimestamp = null;
       this.newMessagesCount = 0;
@@ -108,7 +107,6 @@ class MessageFeed {
         this.messages.push(...data.messages);
         this.renderMessages(data.messages);
         this.lastTimestamp = data.messages[data.messages.length - 1].timestamp;
-        console.log("last timestamp 3: ", this.formatDateToISO(this.lastTimestamp));
       } else {
         this.hasMoreMessages = false;
       }

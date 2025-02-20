@@ -87,11 +87,6 @@ class FlexClient:
         logger.info(f"Saved {query_type} report to {xml_path} and {json_path}")
         return when_generated, data
 
-    async def load_report(self, json_path: str) -> Tuple[dict[str, Any] | None, datetime | None]:
-        """Load a report from the save directory"""
-        with open(json_path, "r") as f:
-            return json.load(f)
-
     async def download_positions(self) -> Tuple[dict[str, Any] | None, datetime | None]:
         """Get current positions"""
         return await self._download_report(
