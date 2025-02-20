@@ -40,10 +40,7 @@ def get_source_configs() -> Dict[str, Dict[str, Any]]:
         }
 
     # JSON Source (for testing)
-    if (
-        os.getenv("IBKR0_JSON_SOURCE_ENABLED", "false").lower() == "true"
-        or os.getenv("IBKR1_ENABLED", "false").lower() != "true"
-    ):
+    if os.getenv("IBKR0_JSON_SOURCE_ENABLED", "false").lower() == "true":
         logger.info("JSON source enabled")
         sources["json"] = {
             "type": "json",
