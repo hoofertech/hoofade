@@ -248,5 +248,12 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+    # Load environment variables
     load_dotenv(override=True)
+
+    # Build static files before starting the app
+    from build_static import build_static_files
+
+    build_static_files()
+
     asyncio.run(main())
