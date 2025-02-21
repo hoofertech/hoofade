@@ -398,7 +398,9 @@ class Database:
             "message_type": "pfl",
         }
 
-    async def get_last_portfolio_message(self, before: datetime | None = None) -> Optional[Dict[str, Any]]:
+    async def get_last_portfolio_message(
+        self, before: datetime | None = None
+    ) -> Optional[Dict[str, Any]]:
         """Get the most recent portfolio message"""
         try:
             async with aiosqlite.connect(self.db_path) as db:
@@ -472,7 +474,9 @@ class Database:
             logger.error(f"Error getting trades after timestamp: {e}")
             return []
 
-    async def save_bucket_trades(self, granularity: str, trades: List[Trade], timestamp: datetime) -> bool:
+    async def save_bucket_trades(
+        self, granularity: str, trades: List[Trade], timestamp: datetime
+    ) -> bool:
         try:
             async with aiosqlite.connect(self.db_path) as db:
                 await db.execute(
@@ -504,7 +508,11 @@ class Database:
                 )
                 row = await cursor.fetchone()
                 if row:
-                    return sorted([Trade.from_dict(t) for t in json.loads(row["trades"])], key=lambda x: x.timestamp, reverse=True)
+                    return sorted(
+                        [Trade.from_dict(t) for t in json.loads(row["trades"])],
+                        key=lambda x: x.timestamp,
+                        reverse=True,
+                    )
                 return []
         except Exception as e:
             logger.error(f"Error getting bucket trades: {e}")

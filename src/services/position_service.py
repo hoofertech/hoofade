@@ -147,7 +147,7 @@ class PositionService:
         # If no matching position is found, create a new position
         new_position = Position(
             instrument=trade.instrument,
-            quantity=trade.quantity,
+            quantity=-abs(trade.quantity) if trade.side == "SELL" else abs(trade.quantity),
             cost_basis=trade.price,
             market_price=trade.price,
             report_time=trade.timestamp,

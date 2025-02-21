@@ -1,19 +1,19 @@
+import json
 import logging
 import os
-from typing import Optional
 from datetime import datetime
-import json
+from typing import Optional
 
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from database import Database
-from utils.datetime_utils import parse_datetime, format_datetime
-from services.trade_bucket_manager import TradeBucketManager
-from services.trade_processor import TradeProcessor
 from formatters.trade import TradeFormatter
 from models.position import Position
+from services.trade_bucket_manager import TradeBucketManager
+from services.trade_processor import TradeProcessor
+from utils.datetime_utils import format_datetime, parse_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -76,38 +76,39 @@ async def get_messages(
 @app.get("/api/in-progress/{granularity}")
 async def get_in_progress_message(granularity: str):
     try:
+        if db is None:
+            raise RuntimeError("Database not initialized")
         bucket_trades = await db.get_bucket_trades(granularity)
         if not bucket_trades:
             return {"message": None}
-            
+
         now = datetime.now()
         start_time = TradeBucketManager.round_time_down(
-            bucket_trades[0].timestamp, 
-            TradeBucketManager.intervals[granularity]
+            bucket_trades[0].timestamp, TradeBucketManager.intervals[granularity]
         )
-        
+
         # Load latest portfolio for accurate trade processing
         latest_portfolio = await db.get_last_portfolio_message()
         positions = []
         if latest_portfolio:
             portfolio_json = json.loads(latest_portfolio["portfolio"])
             positions = [Position.from_dict(p) for p in portfolio_json]
-        
+
         # Process trades with actual portfolio state
         processor = TradeProcessor(positions)
         processed_results, _ = processor.process_trades(bucket_trades)
-        
+
         formatter = TradeFormatter()
         trade_messages = formatter.format_trades(processed_results)
-        
+
         content = [
             f"🔄 In-Progress Trades ({granularity})",
             "",  # Empty line
         ]
-        
+
         for msg in trade_messages:
             content.append(msg.content)
-            
+
         return {
             "message": {
                 "id": f"in_progress_{granularity}",
@@ -116,7 +117,7 @@ async def get_in_progress_message(granularity: str):
                 "metadata": {
                     "status": "in_progress",
                     "granularity": granularity,
-                    "start_time": format_datetime(start_time)
+                    "start_time": format_datetime(start_time),
                 },
                 "message_type": "trade",
             }

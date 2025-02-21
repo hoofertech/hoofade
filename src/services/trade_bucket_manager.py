@@ -15,6 +15,7 @@ class TradeBucketManager:
         "1h": timedelta(hours=1),
         "1d": timedelta(days=1),
     }
+
     def __init__(self):
         self.trade_buckets: Dict[str, List[Trade]] = {"15m": [], "1h": [], "1d": []}
         self.last_bucket_time: Dict[str, Optional[datetime]] = {
