@@ -150,7 +150,7 @@ class TradePublisher:
 
                 # Remove any portfolio published with a greater timestamp
                 await self.db.remove_future_portfolio_messages(last_trade_timestamp)
-                await self.position_service.publish_portfolio(
+                await self.position_service.publish_portfolio_svc(
                     self.position_service.merged_positions, last_trade_timestamp, now
                 )
                 for sink in self.position_service.sinks.values():
@@ -158,7 +158,7 @@ class TradePublisher:
 
             if now is not None:
                 logger.info(f"Publishing {len(new_trades)} trades.")
-                await self.trade_service.publish_trades(new_trades, now)
+                await self.trade_service.publish_trades_svc(new_trades, now)
                 logger.info(f"Published {len(new_trades)} trades.")
             else:
                 logger.warning("No trades to published, as 'now' is not set")

@@ -83,7 +83,7 @@ class TradeService:
 
         return False
 
-    async def publish_trades(self, trades: List[Trade], now: datetime) -> bool:
+    async def publish_trades_svc(self, trades: List[Trade], now: datetime) -> bool:
         """Publish trades to all sinks"""
         publish_success = True
 

@@ -56,9 +56,9 @@ async def test_get_new_trades_with_matching(trade_service, sample_trade, matchin
 
 
 @pytest.mark.asyncio
-async def test_publish_trades(trade_service, mock_sink, sample_trade, test_timestamp):
+async def test_publish_trades_svc(trade_service, mock_sink, sample_trade, test_timestamp):
     trades = [sample_trade]
-    await trade_service.publish_trades(trades, test_timestamp)
+    await trade_service.publish_trades_svc(trades, test_timestamp)
 
     assert len(mock_sink.messages) == 1
     message = mock_sink.messages[0]
@@ -87,7 +87,7 @@ async def test_publish_multiple_trades(trade_service, mock_sink, sample_trade, t
     )
 
     trades = [sample_trade, trade2]
-    await trade_service.publish_trades(trades, test_timestamp)
+    await trade_service.publish_trades_svc(trades, test_timestamp)
 
     assert len(mock_sink.messages) == 1
     message = mock_sink.messages[0]
@@ -101,5 +101,5 @@ async def test_publish_multiple_trades(trade_service, mock_sink, sample_trade, t
 
 @pytest.mark.asyncio
 async def test_empty_trades_no_publish(trade_service, mock_sink, test_timestamp):
-    await trade_service.publish_trades([], test_timestamp)
+    await trade_service.publish_trades_svc([], test_timestamp)
     assert len(mock_sink.messages) == 0

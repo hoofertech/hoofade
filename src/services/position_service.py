@@ -29,7 +29,7 @@ class PositionService:
         self.portfolio_formatter = PortfolioFormatter()
         self.merged_positions: List[Position] = []
 
-    async def publish_portfolio(
+    async def publish_portfolio_svc(
         self,
         positions: List[Position],
         timestamp: datetime,
