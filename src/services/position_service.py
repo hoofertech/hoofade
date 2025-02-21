@@ -129,12 +129,12 @@ class PositionService:
                 # If adding to existing position in same direction, update average price
                 if (old_quantity > 0 and matched_quantity > 0) or (old_quantity < 0 and matched_quantity < 0):
                     # Weighted average calculation
-                    position.average_price = (
-                        (abs(old_quantity) * position.average_price + abs(matched_quantity) * trade.price)
+                    position.cost_basis = (
+                        (abs(old_quantity) * position.cost_basis + abs(matched_quantity) * trade.price)
                         / (abs(old_quantity) + abs(matched_quantity))
                     )
                     logger.info(
-                        f"Updated average price for {position.instrument} to {position.average_price:.2f}"
+                        f"Updated average price for {position.instrument} to {position.cost_basis:.2f}"
                     )
                 
                 position.quantity = new_quantity
