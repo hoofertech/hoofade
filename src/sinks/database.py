@@ -61,6 +61,17 @@ class DatabaseSink(MessageSink):
                 ),
             }
 
+            # We're doing publish trades next, so we don't need to load bucket trades
+            # # Load saved bucket trades
+            # for granularity in self.bucket_manager.trade_buckets.keys():
+            #     trades = await self.db.get_bucket_trades(granularity)
+            #     if trades:
+            #         logger.info(f"Loaded {len(trades)} trades for {granularity} bucket")
+            #         self.bucket_manager.trade_buckets[granularity] = trades
+            #         self.bucket_manager.last_bucket_time[granularity] = TradeBucketManager.round_time_down(
+            #             trades[-1].timestamp, self.bucket_manager.intervals[granularity]
+            #         )
+
             return await self.publish_trades(trades_today, max_timestamp)
 
         except Exception as e:
@@ -102,6 +113,11 @@ class DatabaseSink(MessageSink):
                             self.bucket_manager.positions[granularity],
                             last_trade_timestamp + timedelta(seconds=1),
                         )
+
+            # Save remaining trades in buckets
+            for granularity, bucket_trades in self.bucket_manager.trade_buckets.items():
+                await self.db.save_bucket_trades(granularity, bucket_trades, now)
+                logger.info(f"Saved {len(bucket_trades)} trades for {granularity} bucket")
 
             return True
         except Exception as e:

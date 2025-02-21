@@ -10,17 +10,17 @@ logger = logging.getLogger(__name__)
 
 
 class TradeBucketManager:
+    intervals = {
+        "15m": timedelta(minutes=15),
+        "1h": timedelta(hours=1),
+        "1d": timedelta(days=1),
+    }
     def __init__(self):
         self.trade_buckets: Dict[str, List[Trade]] = {"15m": [], "1h": [], "1d": []}
         self.last_bucket_time: Dict[str, Optional[datetime]] = {
             "15m": None,
             "1h": None,
             "1d": None,
-        }
-        self.intervals = {
-            "15m": timedelta(minutes=15),
-            "1h": timedelta(hours=1),
-            "1d": timedelta(days=1),
         }
         self.positions: Dict[str, List[Position]] = {
             "15m": [],

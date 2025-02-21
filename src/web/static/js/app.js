@@ -2,6 +2,7 @@ class MessageFeed {
   constructor() {
     this.loading = false;
 
+    this.inProgressContainer = document.getElementById('in-progress-container');
     this.messagesContainer = document.getElementById('messages');
     this.loadingElement = document.getElementById('loading');
     this.messageTypeSelect = document.getElementById('messageType');
@@ -209,9 +210,27 @@ class MessageFeed {
     });
   }
 
+  async updateInProgressMessage() {
+    try {
+      const response = await fetch(`/api/in-progress/${this.granularity}`);
+      const data = await response.json();
+
+      // Clear existing in-progress message
+      this.inProgressContainer.innerHTML = '';
+
+      if (data.message) {
+        const messageElement = this.createMessageElement(data.message);
+        this.inProgressContainer.appendChild(messageElement);
+      }
+    } catch (error) {
+      console.error('Error updating in-progress message:', error);
+    }
+  }
+
   createMessageElement(message) {
+    let isInProgress = message.metadata?.status === 'in_progress';
     const div = document.createElement('div');
-    div.className = 'message-card';
+    div.className = `message-card message ${isInProgress ? 'in-progress' : ''}`;
 
     // Extract timestamp from message content for trades
     let displayTimestamp = new Date(message.timestamp).toLocaleString();
@@ -227,7 +246,8 @@ class MessageFeed {
     div.innerHTML = `
             <div class="message-header">
                 <span class="message-type ${displayType.toLowerCase()}">${displayType}</span>
-                <span class="message-timestamp">${displayTimestamp}</span>
+                <span class="timestamp message-timestamp">${displayTimestamp}</span>
+                ${isInProgress ? '<span class="status-badge">Live Updates</span>' : ''}
             </div>
             <div class="message-content">${this.formatContent(message.content)}</div>
         `;
@@ -299,6 +319,8 @@ class MessageFeed {
     } catch (error) {
       console.error('Error checking for new messages:', error);
     }
+
+    this.updateInProgressMessage();
   }
 
   handleWheel(e) {

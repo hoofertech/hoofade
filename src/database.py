@@ -80,6 +80,17 @@ class Database:
                 )
             """)
 
+            # Add new table for bucket trades
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS bucket_trades (
+                    id TEXT PRIMARY KEY,
+                    timestamp DATETIME NOT NULL,
+                    granularity TEXT NOT NULL,
+                    trades JSON NOT NULL,
+                    UNIQUE(granularity)
+                )
+            """)
+
             await db.commit()
 
     async def get_trade(self, trade_id: str) -> Optional[DBTrade]:
@@ -387,21 +398,32 @@ class Database:
             "message_type": "pfl",
         }
 
-    async def get_last_portfolio_message(self, before: datetime) -> Optional[Dict[str, Any]]:
+    async def get_last_portfolio_message(self, before: datetime | None = None) -> Optional[Dict[str, Any]]:
         """Get the most recent portfolio message"""
         try:
             async with aiosqlite.connect(self.db_path) as db:
                 db.row_factory = aiosqlite.Row
-                cursor = await db.execute(
-                    """
-                    SELECT timestamp, portfolio
-                    FROM portfolio_messages
-                    WHERE timestamp < ?
-                    ORDER BY timestamp DESC
-                    LIMIT 1
-                    """,
-                    (format_datetime(before),),
-                )
+                cursor = None
+                if before:
+                    cursor = await db.execute(
+                        """
+                        SELECT timestamp, portfolio
+                        FROM portfolio_messages
+                        WHERE timestamp < ?
+                        ORDER BY timestamp DESC
+                        LIMIT 1
+                        """,
+                        (format_datetime(before),),
+                    )
+                else:
+                    cursor = await db.execute(
+                        """
+                        SELECT timestamp, portfolio
+                        FROM portfolio_messages
+                        ORDER BY timestamp DESC
+                        LIMIT 1
+                        """,
+                    )
                 row = await cursor.fetchone()
                 return dict(row) if row else None
         except Exception as e:
@@ -448,6 +470,44 @@ class Database:
                 return [dict(row) for row in rows]
         except Exception as e:
             logger.error(f"Error getting trades after timestamp: {e}")
+            return []
+
+    async def save_bucket_trades(self, granularity: str, trades: List[Trade], timestamp: datetime) -> bool:
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(
+                    """
+                    INSERT OR REPLACE INTO bucket_trades (
+                        id, timestamp, granularity, trades
+                    ) VALUES (?, ?, ?, ?)
+                    """,
+                    (
+                        f"bucket_{granularity}",
+                        format_datetime(timestamp),
+                        granularity,
+                        json.dumps([t.to_dict() for t in trades]),
+                    ),
+                )
+                await db.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Error saving bucket trades: {e}")
+            return False
+
+    async def get_bucket_trades(self, granularity: str) -> List[Trade]:
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute(
+                    "SELECT trades FROM bucket_trades WHERE granularity = ?",
+                    (granularity,),
+                )
+                row = await cursor.fetchone()
+                if row:
+                    return sorted([Trade.from_dict(t) for t in json.loads(row["trades"])], key=lambda x: x.timestamp, reverse=True)
+                return []
+        except Exception as e:
+            logger.error(f"Error getting bucket trades: {e}")
             return []
 
 
