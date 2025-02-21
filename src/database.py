@@ -1,15 +1,22 @@
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import aiosqlite
 
 from config import (
     get_db_url,
 )
-from models.db_message import DBMessage
+from formatters.portfolio import PortfolioFormatter
+from formatters.trade import TradeFormatter
 from models.db_trade import DBTrade
+from models.position import Position
+from models.trade import Trade
+from services.trade_processor import (
+    CombinedTrade,
+    ProfitTaker,
+)
 from utils.datetime_utils import format_datetime, parse_datetime
 
 logger = logging.getLogger(__name__)
@@ -41,15 +48,14 @@ class Database:
                 )
             """)
 
-            # Create messages table
+            # Create portfolio messages table
             await db.execute("""
-                CREATE TABLE IF NOT EXISTS messages (
+                CREATE TABLE IF NOT EXISTS portfolio_messages (
                     id TEXT PRIMARY KEY,
-                    content TEXT NOT NULL,
                     timestamp DATETIME NOT NULL,
                     message_metadata JSON NOT NULL,
                     source_id TEXT NOT NULL,
-                    message_type TEXT NOT NULL
+                    portfolio JSON NOT NULL
                 )
             """)
 
@@ -58,6 +64,19 @@ class Database:
                 CREATE TABLE IF NOT EXISTS portfolio_posts (
                     source_id TEXT PRIMARY KEY,
                     last_post DATETIME NOT NULL
+                )
+            """)
+
+            # Create trade_messages table
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS trade_messages (
+                    id TEXT PRIMARY KEY,
+                    timestamp DATETIME NOT NULL,
+                    granularity TEXT NOT NULL,
+                    message_metadata JSON NOT NULL,
+                    source_id TEXT NOT NULL,
+                    trades JSON NOT NULL,
+                    processed_trades JSON NOT NULL
                 )
             """)
 
@@ -101,27 +120,6 @@ class Database:
             logger.error(f"Error saving trade: {e}", exc_info=True)
             return False
 
-    async def save_message(self, message_data: DBMessage) -> bool:
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                await db.execute(
-                    """
-                    INSERT INTO messages (
-                        id, content, timestamp, message_metadata,
-                        source_id, message_type
-                    ) VALUES (
-                        :id, :content, :timestamp, :message_metadata,
-                        :source_id, :message_type
-                    )
-                """,
-                    message_data.to_dict(),
-                )
-                await db.commit()
-                return True
-        except Exception as e:
-            logger.error(f"Error saving message: {e}", exc_info=True)
-            return False
-
     async def get_last_portfolio_post(self, source_id: str) -> Optional[datetime]:
         async with aiosqlite.connect(self.db_path) as db:
             cursor = await db.execute(
@@ -151,9 +149,8 @@ class Database:
             async with aiosqlite.connect(self.db_path) as db:
                 await db.execute(
                     """
-                    DELETE FROM messages
+                    DELETE FROM portfolio_messages
                     WHERE timestamp > ?
-                    AND message_type = 'pfl'
                 """,
                     (format_datetime(timestamp),),
                 )
@@ -176,73 +173,261 @@ class Database:
         before: Optional[datetime] = None,
         after: Optional[datetime] = None,
         message_type: Optional[str] = None,
+        granularity: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Get messages with filtering options"""
         try:
             async with aiosqlite.connect(self.db_path) as db:
                 db.row_factory = aiosqlite.Row
 
-                query = """
-                    SELECT id, content, timestamp, message_metadata,
-                           source_id, message_type
-                    FROM messages
-                    WHERE 1=1
-                """
-                params = []
+                if message_type == "portfolio":
+                    rows = await self._get_portfolio_messages(db, limit, before, after)
+                    return [self._format_portfolio_message(row) for row in rows]
+                elif message_type == "trade":
+                    rows = await self._get_trade_messages(db, limit, before, after, granularity)
+                    return [self._format_trade_message(row) for row in rows]
+                else:
+                    # Get raw data with timestamps
+                    portfolio_rows = await self._get_portfolio_messages(db, limit, before, after)
+                    trade_rows = await self._get_trade_messages(
+                        db, limit, before, after, granularity
+                    )
 
-                if before:
-                    query += " AND timestamp < ?"
-                    params.append(format_datetime(before))
-                elif after:
-                    query += " AND timestamp > ?"
-                    params.append(format_datetime(after))
+                    # Combine and sort raw rows
+                    all_rows = []
+                    all_rows.extend((row, "portfolio") for row in portfolio_rows)
+                    all_rows.extend((row, "trade") for row in trade_rows)
 
-                if message_type and message_type != "all":
-                    if message_type.lower() == "trade":
-                        query += " AND message_type = 'trd'"
-                    elif message_type.lower() == "pfl":
-                        query += " AND message_type = 'pfl'"
+                    # Sort by timestamp and limit
+                    all_rows.sort(key=lambda x: x[0]["timestamp"], reverse=True)
+                    limited_rows = all_rows[:limit]
 
-                query += " ORDER BY timestamp DESC LIMIT ?"
-                params.append(limit)
+                    # Format only the limited rows
+                    return [
+                        self._format_portfolio_message(row)
+                        if msg_type == "portfolio"
+                        else self._format_trade_message(row)
+                        for row, msg_type in limited_rows
+                    ]
 
-                cursor = await db.execute(query, params)
-                rows = await cursor.fetchall()
-
-                return [
-                    {
-                        "id": row["id"],
-                        "content": row["content"],
-                        "timestamp": parse_datetime(row["timestamp"]),
-                        "metadata": json.loads(row["message_metadata"]),
-                        "message_type": row["message_type"],
-                    }
-                    for row in rows
-                ]
         except Exception as e:
             logger.error(f"Error fetching messages: {e}", exc_info=True)
             raise
 
-    async def get_last_message(self) -> Optional[DBMessage]:
-        """Get the last message"""
+    async def _get_portfolio_messages(
+        self,
+        db: aiosqlite.Connection,
+        limit: int,
+        before: Optional[datetime],
+        after: Optional[datetime],
+    ) -> List[Dict[str, Any]]:
+        query = """
+            SELECT id, timestamp, message_metadata,
+                   source_id, portfolio
+            FROM portfolio_messages
+            WHERE 1=1
+        """
+        params = []
+
+        if before:
+            query += " AND timestamp < ?"
+            params.append(format_datetime(before))
+        elif after:
+            query += " AND timestamp > ?"
+            params.append(format_datetime(after))
+
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        cursor = await db.execute(query, params)
+        rows = await cursor.fetchall()
+
+        return [
+            {
+                "id": row["id"],
+                "timestamp": parse_datetime(row["timestamp"]),
+                "metadata": json.loads(row["message_metadata"]),
+                "message_type": "pfl",
+                "portfolio": json.loads(row["portfolio"]),
+            }
+            for row in rows
+        ]
+
+    async def _get_trade_messages(
+        self,
+        db: aiosqlite.Connection,
+        limit: int,
+        before: Optional[datetime],
+        after: Optional[datetime],
+        granularity: Optional[str],
+    ) -> List[Dict[str, Any]]:
+        query = """
+            SELECT id, timestamp, message_metadata,
+                   source_id, granularity, trades, processed_trades
+            FROM trade_messages
+            WHERE 1=1
+        """
+        params = []
+
+        if before:
+            query += " AND timestamp < ?"
+            params.append(format_datetime(before))
+        elif after:
+            query += " AND timestamp > ?"
+            params.append(format_datetime(after))
+
+        if granularity:
+            query += " AND granularity = ?"
+            params.append(granularity)
+
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        cursor = await db.execute(query, params)
+        rows = await cursor.fetchall()
+
+        return [
+            {
+                "id": row["id"],
+                "timestamp": parse_datetime(row["timestamp"]),
+                "metadata": json.loads(row["message_metadata"]),
+                "message_type": "trd",
+                "granularity": row["granularity"],
+                "trades": json.loads(row["trades"]),
+                "processed_trades": json.loads(row["processed_trades"]),
+            }
+            for row in rows
+        ]
+
+    async def save_trade_message(self, message: Dict) -> bool:
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(
+                    """
+                    INSERT INTO trade_messages (
+                        id, timestamp, granularity,
+                        message_metadata, source_id, trades, processed_trades
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        message["id"],
+                        message["timestamp"],
+                        message["granularity"],
+                        json.dumps(message["metadata"]),
+                        "system",
+                        json.dumps([t.to_dict() for t in message["trades"]]),
+                        json.dumps([pt.to_dict() for pt in message["processed_trades"]]),
+                    ),
+                )
+                await db.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Error saving trade message: {e}")
+            return False
+
+    async def save_portfolio_message(self, timestamp: datetime, positions: List[Position]) -> bool:
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(
+                    """
+                    INSERT INTO portfolio_messages (
+                        id, timestamp, message_metadata,
+                        source_id, portfolio
+                    ) VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        format_datetime(timestamp),
+                        format_datetime(timestamp),
+                        json.dumps({"type": "pfl"}),
+                        "system",
+                        json.dumps([p.to_dict() for p in positions]),
+                    ),
+                )
+                await db.commit()
+                return True
+        except Exception as e:
+            logger.error(f"Error saving portfolio message: {e}")
+            return False
+
+    def _format_trade_message(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        """Format trade message from raw data"""
+        processed_trades = row["processed_trades"]
+        formatter = TradeFormatter()
+        messages = formatter.format_trades(
+            [self._process_trade_dict(pt) for pt in processed_trades]
+        )
+
+        content = [
+            f"Trades for {row['granularity']} interval",
+            "",  # Empty line after header
+        ]
+        for msg in messages:
+            content.append(msg.content)
+
+        return {
+            "id": row["id"],
+            "content": "\n".join(content),
+            "timestamp": format_datetime(row["timestamp"]),
+            "metadata": row["metadata"],
+            "message_type": "trd",
+            "granularity": row["granularity"],
+        }
+
+    def _format_portfolio_message(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        """Format portfolio message from raw data"""
+        portfolio = [Position.from_dict(p) for p in row["portfolio"]]
+        formatter = PortfolioFormatter()
+        message = formatter.format_portfolio(portfolio, row["timestamp"])
+
+        return {
+            "id": row["id"],
+            "content": message.content,
+            "timestamp": format_datetime(row["timestamp"]),
+            "metadata": row["metadata"],
+            "message_type": "pfl",
+        }
+
+    async def get_last_portfolio_message(self) -> Optional[Dict[str, Any]]:
+        """Get the most recent portfolio message"""
         try:
             async with aiosqlite.connect(self.db_path) as db:
                 db.row_factory = aiosqlite.Row
-
                 cursor = await db.execute(
                     """
-                    SELECT id, content, timestamp, message_metadata,
-                           source_id, message_type
-                    FROM messages
+                    SELECT timestamp, portfolio
+                    FROM portfolio_messages
                     ORDER BY timestamp DESC
                     LIMIT 1
-                """
+                    """
                 )
                 row = await cursor.fetchone()
-                return DBMessage.from_dict(dict(row)) if row else None
+                return dict(row) if row else None
         except Exception as e:
-            logger.error(f"Error fetching last message: {e}", exc_info=True)
-            raise
+            logger.error(f"Error getting last portfolio message: {e}")
+            return None
+
+    def _sort_trades_by_timestamp(self, trades: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        def get_timestamp(trade: Dict[str, Any]) -> datetime:
+            ts = trade.get("timestamp")
+            if isinstance(ts, str):
+                return parse_datetime(ts)
+            elif isinstance(ts, datetime):
+                return ts
+            return datetime.min
+
+        return sorted(trades, key=get_timestamp)
+
+    def _process_trade_dict(
+        self, trade_dict: Dict[str, Any]
+    ) -> Union[Trade, ProfitTaker, CombinedTrade]:
+        trade_type = trade_dict.get("ttype", "trade")
+
+        if trade_type == "profit_taker":
+            return ProfitTaker.from_dict(trade_dict)
+        elif trade_type == "combined_trade":
+            return CombinedTrade.from_dict(trade_dict)
+        else:
+            return Trade.from_dict(trade_dict)
 
 
 async def create_db() -> Database:

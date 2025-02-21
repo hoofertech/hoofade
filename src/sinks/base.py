@@ -8,20 +8,33 @@ except RuntimeError:
     asyncio.set_event_loop(_event_loop)
 
 from abc import ABC, abstractmethod
+from datetime import datetime
+from typing import List
 
-from models.message import Message
+from models.position import Position
+from models.trade import Trade
 
 
 class MessageSink(ABC):
+    PUBLISH_PORTFOLIO_AFTER_EACH_TRADE = False
+
     def __init__(self, sink_id: str):
         self.sink_id = sink_id
 
+    def can_publish(self, message_type: str | None = None) -> bool:
+        return True
+
     @abstractmethod
-    async def publish(self, message: Message) -> bool:
-        """Publish a message to the sink"""
+    async def publish_trades(self, trades: List[Trade], now: datetime) -> bool:
+        """Publish trades to the sink"""
         pass
 
     @abstractmethod
-    def can_publish(self) -> bool:
-        """Check if the sink can accept new messages"""
+    async def publish_portfolio(self, positions: List[Position], now: datetime) -> bool:
+        """Publish portfolio to the sink"""
+        pass
+
+    @abstractmethod
+    def update_portfolio(self, positions: List[Position]) -> bool:
+        """Update portfolio to the sink"""
         pass

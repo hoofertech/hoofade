@@ -1,30 +1,33 @@
+import logging
 from datetime import datetime
+from decimal import Decimal
 from unittest.mock import Mock, patch
 
 import pytest
+import tweepy
 
 from config import default_timezone
-from models.message import Message
+from models.instrument import Instrument, InstrumentType
+from models.position import Position
+from models.trade import Trade
 from sinks.cli import CLISink
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
 async def test_twitter_sink_publish_success(twitter_sink):
     with patch("tweepy.Client") as mock_client:
-        mock_client.create_tweet = Mock()
+        mock_client.create_tweet = Mock(
+            return_value=tweepy.Response(data={"id": 123}, includes={}, errors=[], meta={})
+        )
         twitter_sink.client = mock_client
 
-        message = Message(
-            content="Test message",
-            timestamp=datetime.now(default_timezone()),
-            metadata={},
-        )
+        now = datetime.now(default_timezone())
+        trades = [create_test_trade()]
 
-        assert await twitter_sink.publish(message)
-        mock_client.create_tweet.assert_called_once_with(
-            text="Test message\n\n🚀 Build yours: github.com/hoofertech/hoofade",
-            in_reply_to_tweet_id=None,
-        )
+        assert await twitter_sink.publish_trades(trades, now)
+        mock_client.create_tweet.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -33,41 +36,41 @@ async def test_twitter_sink_publish_failure(twitter_sink):
         mock_client.create_tweet = Mock(side_effect=Exception("API Error"))
         twitter_sink.client = mock_client
 
-        message = Message(
-            content="Test message",
-            timestamp=datetime.now(default_timezone()),
-            metadata={},
-        )
+        now = datetime.now(default_timezone())
+        trades = [create_test_trade()]  # Helper function to create a test trade
 
-        assert not await twitter_sink.publish(message)
+        assert not await twitter_sink.publish_trades(trades, now)
+
+
+@pytest.mark.asyncio
+async def test_twitter_sink_portfolio_publish_failure(twitter_sink):
+    with patch("tweepy.Client") as mock_client:
+        mock_client.create_tweet = Mock(side_effect=Exception("API Error"))
+        twitter_sink.client = mock_client
+
+        now = datetime.now(default_timezone())
+        positions = [create_test_position()]  # Helper function to create a test position
+
+        assert not await twitter_sink.publish_portfolio(positions, now)
 
 
 @pytest.mark.asyncio
 async def test_twitter_sink_rate_limit(twitter_sink):
     with patch("tweepy.Client") as mock_client:
-        mock_client.create_tweet = Mock()
+        mock_client.create_tweet = Mock(
+            return_value=tweepy.Response(data={"id": 123}, includes={}, errors=[], meta={})
+        )
         twitter_sink.client = mock_client
+        now = datetime.now(default_timezone())
+        trades = [create_test_trade()]
 
         # First message should succeed
-        message1 = Message(
-            content="Test message 1",
-            timestamp=datetime.now(default_timezone()),
-            metadata={"type": "trd"},
-        )
-        assert await twitter_sink.publish(message1)
+        assert await twitter_sink.publish_trades(trades, now)
 
         # Second message should fail due to rate limit
-        message2 = Message(
-            content="Test message 2",
-            timestamp=datetime.now(default_timezone()),
-            metadata={"type": "trd"},
-        )
-        assert not await twitter_sink.publish(message2)
+        assert not await twitter_sink.publish_trades(trades, now)
 
-        mock_client.create_tweet.assert_called_once_with(
-            text="Test message 1\n\n🚀 Build yours: github.com/hoofertech/hoofade",
-            in_reply_to_tweet_id=None,
-        )
+        mock_client.create_tweet.assert_called_once()
 
 
 @pytest.fixture
@@ -77,17 +80,48 @@ def cli_sink():
 
 @pytest.mark.asyncio
 async def test_cli_sink_publish_success(cli_sink, capsys):
-    message = Message(
-        content="Test CLI message",
-        timestamp=datetime.now(default_timezone()),
-        metadata={},
-    )
+    now = datetime.now(default_timezone())
+    trades = [create_test_trade()]
 
-    assert await cli_sink.publish(message)
+    assert await cli_sink.publish_trades(trades, now)
     captured = capsys.readouterr()
-    assert "Test CLI message" in captured.out
+    assert "Trade Update" in captured.out
 
 
 @pytest.mark.asyncio
 async def test_cli_sink_always_can_publish(cli_sink):
-    assert cli_sink.can_publish() is True
+    assert cli_sink.can_publish("trd") is True
+    assert cli_sink.can_publish("pfl") is True
+
+
+def create_test_position():
+    instrument = create_test_instrument()
+    return Position(
+        instrument=instrument,
+        quantity=Decimal("100"),
+        cost_basis=Decimal("150.25"),
+        market_price=Decimal("155.00"),
+        report_time=datetime.now(default_timezone()),
+    )
+
+
+def create_test_trade():
+    return Trade(
+        instrument=create_test_instrument(),
+        quantity=Decimal("100"),
+        price=Decimal("150.25"),
+        side="BUY",
+        timestamp=datetime.now(default_timezone()),
+        source_id="test-source",
+        trade_id="test-trade-1",
+        currency="USD",
+    )
+
+
+def create_test_instrument():
+    return Instrument(
+        symbol="AAPL",
+        currency="USD",
+        type=InstrumentType.STOCK,
+        option_details=None,
+    )

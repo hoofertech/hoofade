@@ -16,7 +16,6 @@ def test_short_message_no_split():
     )
 
     tweets = MessageSplitter.split_to_tweets(message)
-    logger.info(f"tweets: {tweets[0].content}")
     assert len(tweets) == 1
     assert (
         tweets[0].content == message.content + "\n\n🚀 Build yours: github.com/hoofertech/hoofade"

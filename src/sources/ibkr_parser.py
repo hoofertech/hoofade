@@ -21,15 +21,18 @@ class FlexReportParser:
         try:
             if ";" in datetime_str:
                 # Handle IBKR Flex Query format: "20250129;112309"
-                return pd.to_datetime(
-                    datetime_str.replace(";", " "),
-                    format="%Y%m%d %H%M%S",
-                    utc=True,
-                ).to_pydatetime()
+                return (
+                    pd.to_datetime(
+                        datetime_str.replace(";", " "),
+                        format="%Y%m%d %H%M%S",
+                    )
+                    .to_pydatetime()
+                    .replace(tzinfo=default_timezone())
+                )
             else:
                 # Handle other possible formats (like ISO format)
-                dt = pd.to_datetime(datetime_str, utc=True)
-                return dt.to_pydatetime()
+                dt = pd.to_datetime(datetime_str)
+                return dt.to_pydatetime().replace(tzinfo=default_timezone())
         except Exception as e:
             logger.error(f"Error parsing datetime {datetime_str}: {e}")
             return None

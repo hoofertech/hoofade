@@ -1,10 +1,13 @@
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict
 
 from models.instrument import Instrument, InstrumentType
-from utils.datetime_utils import format_date
+from utils.datetime_utils import format_date, format_datetime, parse_datetime
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -66,17 +69,24 @@ class Position:
             f"{opt.option_type.value} {opt.strike:,.2f} {opt.expiry:%Y-%m-%d}"
         )
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Position":
+        return cls(
+            instrument=Instrument.from_dict(data),
+            quantity=Decimal(data["quantity"]),
+            cost_basis=Decimal(data["cost_basis"]),
+            market_price=Decimal(data["market_price"]),
+            report_time=parse_datetime(data["report_time"]),
+        )
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert position to dictionary for serialization"""
         base_dict = {
-            "symbol": self.instrument.symbol,
-            "type": self.instrument.type.value,
+            **self.instrument.to_dict(),
             "quantity": str(self.quantity),
             "cost_basis": str(self.cost_basis),
             "market_price": str(self.market_price),
-            "market_value": str(self.market_value),
-            "unrealized_pnl": str(self.unrealized_pnl),
-            "unrealized_pnl_percent": str(self.unrealized_pnl_percent),
+            "report_time": format_datetime(self.report_time),
         }
 
         # Only add option details if they exist

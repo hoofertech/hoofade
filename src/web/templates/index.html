@@ -13,12 +13,17 @@
   <div class="container">
     <header>
       <h1>Activity Board</h1>
-      <div class="filter-container">
-        <select id="messageType">
+      <div id="filter-cntr" class="filter-container">
+        <select id="messageType" class="message-select">
           <option value="all">All Messages</option>
           <option value="trade">Trades</option>
           <option value="portfolio">Portfolio</option>
         </select>
+        <div class="granularity-buttons">
+          <button class="granularity-btn active" data-granularity="15m">15m</button>
+          <button class="granularity-btn" data-granularity="1h">1h</button>
+          <button class="granularity-btn" data-granularity="1d">1d</button>
+        </div>
       </div>
     </header>
     <main>

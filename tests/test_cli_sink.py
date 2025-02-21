@@ -54,15 +54,12 @@ async def test_cli_sink_stock_trade(cli_sink, json_source, trade_formatter, caps
         currency="USD",
     )
 
-    # Format trade using formatter
-    message = trade_formatter._format_trade(trade)
-
     # Publish to CLI sink
-    await cli_sink.publish(message)
+    now = datetime.now(default_timezone())
+    await cli_sink.publish_trades([trade], now)
 
     # Check output
     captured = capsys.readouterr()
-    logger.info("captured.out: %s", captured.out)
     assert "BUY" in captured.out
     assert "$BABA" in captured.out
     assert "100" in captured.out
@@ -91,15 +88,12 @@ async def test_cli_sink_option_trade(cli_sink, json_source, trade_formatter, cap
         currency="USD",
     )
 
-    # Format trade using formatter
-    message = trade_formatter._format_trade(trade)
-
     # Publish to CLI sink
-    await cli_sink.publish(message)
+    now = datetime.now(default_timezone())
+    await cli_sink.publish_trades([trade], now)
 
     # Check output
     captured = capsys.readouterr()
-    logger.info("captured.out: %s", captured.out)
     assert "BUY" in captured.out
     assert "$NVDA" in captured.out
     assert "18JUL25" in captured.out
@@ -131,13 +125,12 @@ async def test_cli_sink_real_trades(cli_sink, json_source, trade_formatter, caps
         currency="USD",
     )
 
-    # Format and publish opening trade
-    message = trade_formatter._format_trade(opening_trade)
-    await cli_sink.publish(message)
+    # Publish to CLI sink
+    now = datetime.now(default_timezone())
+    await cli_sink.publish_trades([opening_trade], now)
 
     # Check output
     captured = capsys.readouterr()
-    logger.info("captured.out: %s", captured.out)
     output = captured.out
 
     # Verify opening trade

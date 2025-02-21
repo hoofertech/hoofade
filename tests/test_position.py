@@ -98,7 +98,6 @@ def test_stock_position_to_dict(stock_position):
     assert position_dict["symbol"] == "AAPL"
     assert position_dict["type"] == "stock"
     assert position_dict["quantity"] == "100"
-    assert position_dict["market_value"] == "16000.00"
     assert "strike" not in position_dict
 
 

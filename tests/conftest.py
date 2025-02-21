@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict, Tuple, override
+from typing import Any, Dict, List, Optional, Tuple, override
 
 import pytest
 
@@ -10,7 +10,7 @@ from models.instrument import Instrument, OptionType
 from models.message import Message
 from models.position import Position
 from models.trade import Trade
-from sinks.base import MessageSink
+from sinks.message_publisher import MessagePublisher
 from sinks.twitter import TwitterSink
 from sources.base import TradeSource
 
@@ -37,16 +37,34 @@ class MockTradeSource(TradeSource):
         return 1
 
 
-class MockMessageSink(MessageSink):
+class MockMessageSink(MessagePublisher):
     def __init__(self, sink_id: str):
-        super().__init__(sink_id)
-        self.messages: list[Message] = []
+        MessagePublisher.__init__(self, sink_id)
+        self.published_trades: List[List[Trade]] = []
+        self.published_portfolios: List[List[Position]] = []
+        self.last_trade_timestamp: Optional[datetime] = None
+        self.last_portfolio_timestamp: Optional[datetime] = None
+        # For backward compatibility
+        self.messages: List[Message] = []
 
-    async def publish(self, message: Message) -> bool:
-        self.messages.append(message)
+    def can_publish(self, message_type: str | None = None) -> bool:
         return True
 
-    def can_publish(self) -> bool:
+    async def publish_trades(self, trades: List[Trade], now: datetime) -> bool:
+        if not trades:
+            return True
+
+        self.published_trades.append(trades)
+        self.last_trade_timestamp = now
+        # For backward compatibility
+        message = await self.create_trade_message(trades, now)
+        if message is not None:
+            self.messages.append(message)
+        return True
+
+    async def publish_portfolio(self, positions: List[Position], now: datetime) -> bool:
+        self.published_portfolios.append(positions)
+        self.last_portfolio_timestamp = now
         return True
 
 

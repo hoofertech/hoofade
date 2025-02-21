@@ -1,14 +1,28 @@
 class MessageFeed {
   constructor() {
-    this.messages = [];
     this.loading = false;
-    this.lastTimestamp = null;
-    this.messageType = 'all';
-    this.hasMoreMessages = true;
-    this.newMessagesCount = 0;
-    this.firstLoadedTimestamp = null;
-    this.pendingNewMessages = [];
 
+    this.messagesContainer = document.getElementById('messages');
+    this.loadingElement = document.getElementById('loading');
+    this.messageTypeSelect = document.getElementById('messageType');
+    this.newMessagesButton = document.getElementById('newMessages');
+    this.newMessagesCountElement = document.getElementById('newMessagesCount');
+
+    // Initialize state from URL parameters
+    const params = new URLSearchParams(window.location.search);
+    this.messageType = params.get('type') || 'all';
+    this.granularity = params.get('granularity') || '15m';
+
+    // Set initial UI state
+    this.initializeUIState();
+    this.setupMessageTypeSelect();
+    this.setupGranularityControls();
+    this.setupEventListeners();
+    this.loadMessages(true);
+    this.startPollingNewMessages();
+  }
+
+  initializeUIState() {
     this.pullStartY = 0;
     this.pullMoveY = 0;
     this.isPulling = false;
@@ -17,34 +31,33 @@ class MessageFeed {
     this.lastWheelCheck = 0;  // timestamp for last wheel check
     this.wheelThrottleMs = 1000;  // One second throttle
 
-    this.messagesContainer = document.getElementById('messages');
-    this.loadingElement = document.getElementById('loading');
-    this.messageTypeSelect = document.getElementById('messageType');
-    this.newMessagesButton = document.getElementById('newMessages');
-    this.newMessagesCountElement = document.getElementById('newMessagesCount');
+    // Set message type dropdown
+    this.messageTypeSelect.value = this.messageType;
 
-    this.setupEventListeners();
-    this.loadMessages();
-    this.startPollingNewMessages();
+    // Set granularity buttons
+    document.querySelectorAll('.granularity-btn').forEach(button => {
+      if (button.dataset.granularity === this.granularity) {
+        button.classList.add('active');
+      } else {
+        button.classList.remove('active');
+      }
+    });
+
+    // Update URL if parameters are missing
+    if (!window.location.search) {
+      this.updateURL(this.messageType, this.granularity);
+    }
   }
 
   setupEventListeners() {
     this.messageTypeSelect.addEventListener('change', () => {
       this.messageType = this.messageTypeSelect.value;
-      this.messages = [];
-      this.lastTimestamp = null;
-      this.hasMoreMessages = true;
-      this.firstLoadedTimestamp = null;
-      this.newMessagesCount = 0;
-      this.messagesContainer.innerHTML = '';
-      this.newMessagesButton.classList.add('hidden');
-      this.pendingNewMessages = [];
-      this.loadMessages();
+      this.loadMessages(true);
     });
 
     window.addEventListener('scroll', () => {
       if (this.shouldLoadMore()) {
-        this.loadMessages();
+        this.loadMessages(false);
       }
     });
 
@@ -64,6 +77,39 @@ class MessageFeed {
     document.addEventListener('mouseup', () => this.handlePullEnd());
   }
 
+  setupMessageTypeSelect() {
+    this.messageTypeSelect.addEventListener('change', (e) => {
+      this.messageType = e.target.value;
+      this.updateURL(this.messageType, this.granularity);
+    });
+  }
+
+  setupGranularityControls() {
+    const buttons = document.querySelectorAll('.granularity-btn');
+
+    buttons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        // Remove active class from all buttons
+        buttons.forEach(btn => btn.classList.remove('active'));
+
+        // Add active class to clicked button
+        e.target.classList.add('active');
+
+        // Update granularity and URL
+        this.granularity = e.target.dataset.granularity;
+        this.updateURL(this.messageType, this.granularity);
+      });
+    });
+  }
+
+  updateURL(type, granularity) {
+    const params = new URLSearchParams(window.location.search);
+    params.set('type', type);
+    params.set('granularity', granularity);
+    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+    this.loadMessages(true);
+  }
+
   shouldLoadMore() {
     if (!this.hasMoreMessages || this.loading) {
       return false;
@@ -73,28 +119,28 @@ class MessageFeed {
     return scrollPosition >= scrollThreshold;
   }
 
-  formatDateToISO(date) {
-    // Ensure we have a Date object
-    if (typeof date === 'string') {
-      date = new Date(date);
+  async loadMessages(fromScratch) {
+    if (fromScratch) {
+      this.messages = [];
+      this.lastTimestamp = null;
+      this.hasMoreMessages = true;
+      this.firstLoadedTimestamp = null;
+      this.newMessagesCount = 0;
+      this.messagesContainer.innerHTML = '';
+      this.newMessagesButton.classList.add('hidden');
+      this.pendingNewMessages = [];
     }
 
-    return date.toISOString();
-  }
-
-  async loadMessages() {
     if (this.loading || !this.hasMoreMessages) return;
 
     this.loading = true;
     this.loadingElement.classList.remove('hidden');
 
     try {
-      let url = '/api/messages?limit=20';
+      let url = `/api/messages?type=${this.messageType}&granularity=${this.granularity}&limit=20`;
+
       if (this.lastTimestamp) {
-        url += `&before=${this.formatDateToISO(this.lastTimestamp)}`;
-      }
-      if (this.messageType !== 'all') {
-        url += `&type=${this.messageType}`;
+        url += `&before=${this.lastTimestamp}`;
       }
 
       const response = await fetch(url);
@@ -168,25 +214,7 @@ class MessageFeed {
     div.className = 'message-card';
 
     // Extract timestamp from message content for trades
-    let displayTimestamp;
-    if (message.message_type === 'trd') {
-      // Extract date from first line of trade message (format: "Trades on DD MMM YYYY HH:MM")
-      const match = message.content.match(/Trades on (\d{2} [A-Z]{3} \d{4} \d{2}:\d{2})/);
-      if (match) {
-        displayTimestamp = new Date(match[1]).toLocaleString();
-      }
-    } else if (message.message_type === 'pfl') {
-      // Extract date from first line of portfolio message (format: "Portfolio on DD MMM YYYY HH:MM")
-      const match = message.content.match(/Portfolio on (\d{2} [A-Z]{3} \d{4} \d{2}:\d{2})/);
-      if (match) {
-        displayTimestamp = new Date(match[1]).toLocaleString();
-      }
-    }
-
-    // Fallback to message timestamp if we couldn't extract from content
-    if (!displayTimestamp) {
-      displayTimestamp = new Date(message.timestamp).toLocaleString();
-    }
+    let displayTimestamp = new Date(message.timestamp).toLocaleString();
 
     // Determine display message type
     let displayType = message.message_type;
@@ -250,9 +278,9 @@ class MessageFeed {
     if (this.loading) return;
 
     try {
-      let url = '/api/messages?limit=20';
+      let url = `/api/messages?type=${this.messageType}&granularity=${this.granularity}&limit=20`;
       if (this.firstLoadedTimestamp) {
-        url += `&after=${this.formatDateToISO(this.firstLoadedTimestamp)}`;
+        url += `&after=${this.firstLoadedTimestamp}`;
       }
       if (this.messageType !== 'all') {
         url += `&type=${this.messageType}`;

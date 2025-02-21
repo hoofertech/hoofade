@@ -1,19 +1,23 @@
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import List
 
 import tweepy
 
 from config import default_timezone
 from formatters.message_splitter import MessageSplitter
+from formatters.portfolio import PortfolioFormatter
+from formatters.trade import TradeFormatter
 from models.message import Message
+from models.position import Position
+from models.trade import Trade
 
-from .base import MessageSink
+from .message_publisher import MessagePublisher
 
 logger = logging.getLogger(__name__)
 
 
-class TwitterSink(MessageSink):
+class TwitterSink(MessagePublisher):
     def __init__(
         self,
         sink_id: str,
@@ -23,7 +27,7 @@ class TwitterSink(MessageSink):
         access_token: str,
         access_token_secret: str,
     ):
-        super().__init__(sink_id)
+        MessagePublisher.__init__(self, sink_id)
         self.client = tweepy.Client(
             bearer_token=bearer_token,
             consumer_key=api_key,
@@ -31,6 +35,8 @@ class TwitterSink(MessageSink):
             access_token=access_token,
             access_token_secret=access_token_secret,
         )
+        self.trade_formatter = TradeFormatter()
+        self.portfolio_formatter = PortfolioFormatter()
         self.last_portfolio_publish = datetime.fromtimestamp(0, tz=default_timezone())
         self.last_trade_publish = datetime.fromtimestamp(0, tz=default_timezone())
 
@@ -47,44 +53,55 @@ class TwitterSink(MessageSink):
             return (now - self.last_trade_publish).total_seconds() >= 300  # 5 minutes
         return True  # For other message types
 
-    async def publish(self, message: Message) -> bool:
-        try:
-            message_type = message.metadata.get("type") if message.metadata else None
-            if not self.can_publish(message_type):
-                return False
+    async def publish_trades(self, trades: List[Trade], now: datetime) -> bool:
+        if not trades:
+            return True
 
+        if not self.can_publish("trd"):
+            return False
+
+        message = await self.create_trade_message(trades, now)
+        if message is None:
+            return True
+
+        return await self._publish_to_twitter(message, "trd")
+
+    async def publish_portfolio(self, positions: List[Position], now: datetime) -> bool:
+        if not self.can_publish("pfl"):
+            return False
+
+        message = self.create_portfolio_message(positions, now)
+        return await self._publish_to_twitter(message, "pfl")
+
+    async def _publish_to_twitter(self, message: Message, message_type: str) -> bool:
+        try:
             tweets = MessageSplitter.split_to_tweets(message)
-            previous_tweet_id: Optional[str] = None
+            previous_tweet_id = None
 
             for tweet in tweets:
-                logger.info(f"Publishing tweet: {tweet.content}")
-                try:
-                    response = self.client.create_tweet(
-                        text=tweet.content,
-                        in_reply_to_tweet_id=previous_tweet_id,
-                    )
-                    logger.info(f"Response: {response}")
-                    # Tweepy Response object contains a data dict with tweet info
-                    if isinstance(response, tweepy.Response):
-                        tweet_data = response.data
-                        if tweet_data:
-                            previous_tweet_id = tweet_data.get("id", None)
-                        else:
-                            logger.error("No tweet data in response")
-                            return False
-                    logger.debug(f"Published tweet: {tweet.content}")
-                except Exception as e:
-                    logger.error(f"Error publishing tweet: {str(e)}")
+                response = self.client.create_tweet(
+                    text=tweet.content,
+                    in_reply_to_tweet_id=previous_tweet_id,
+                )
+                if isinstance(response, tweepy.Response) and response.data:
+                    tweet_data = response.data
+                    if tweet_data:
+                        previous_tweet_id = tweet_data.get("id", None)
+                    else:
+                        logger.error("No tweet data in response")
+                        return False
+                else:
                     return False
 
-            # Update the appropriate last publish time
-            now = datetime.now(default_timezone())
-            if message_type == "pfl":
-                self.last_portfolio_publish = now
-            elif message_type == "trd":
-                self.last_trade_publish = now
-
+            self._update_last_publish_time(message_type)
             return True
         except Exception as e:
             logger.error(f"Error in Twitter sink: {str(e)}")
             return False
+
+    def _update_last_publish_time(self, message_type: str):
+        now = datetime.now(default_timezone())
+        if message_type == "pfl":
+            self.last_portfolio_publish = now
+        elif message_type == "trd":
+            self.last_trade_publish = now

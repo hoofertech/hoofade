@@ -1,17 +1,15 @@
 import logging
-from typing import Dict, List, Tuple
+from datetime import datetime
+from typing import Dict, List
 
 from database import Database
 from formatters.trade import TradeFormatter
 from models.db_trade import DBTrade
-from models.message import Message
 from models.position import Position
 from models.trade import Trade
 from services.position_service import PositionService
 from services.trade_processor import (
-    ProcessingResult,
     ProfitTaker,
-    TradeProcessor,
 )
 from sinks.base import MessageSink
 from sources.base import TradeSource
@@ -34,10 +32,8 @@ class TradeService:
         self.formatter = formatter
         self.position_service = position_service
 
-    async def get_new_trades(
-        self,
-    ) -> Tuple[List[ProcessingResult], List[ProfitTaker]]:
-        """Get and process new trades from all sources."""
+    async def get_new_trades(self) -> List[Trade]:
+        """Get new trades from all sources."""
         all_trades = []
 
         # Get and merge trades from all sources
@@ -48,14 +44,7 @@ class TradeService:
                     await self._save_trade(trade)
                     all_trades.append(trade)
 
-        if not all_trades:
-            return [], []
-
-        # Process trades through pipeline
-        processor = TradeProcessor(self.position_service.merged_positions)
-        processed_results, portfolio_matches = processor.process_trades(all_trades)
-
-        return processed_results, portfolio_matches
+        return all_trades
 
     def _apply_portfolio_match(self, match: ProfitTaker, positions: List[Position]) -> bool:
         """
@@ -94,39 +83,19 @@ class TradeService:
 
         return False
 
-    async def publish_trades(self, trades: List[ProcessingResult]) -> bool:
-        """Publish processed trades to all sinks."""
-        if not trades:
-            return True
-
-        # Get timestamp of most recent trade
-        last_trade_timestamp = max(trade.timestamp for trade in trades)
-        date_str = last_trade_timestamp.strftime("%d %b %Y %H:%M").upper()
-        # Format trades into messages
-        content = [
-            f"Trades on {date_str}",
-            "",  # Empty line after header
-        ]
-
-        for msg in self.formatter.format_trades(trades):
-            content.append(msg.content)
-
-        # Create combined message
-        combined_message = Message(
-            content="\n".join(content),
-            timestamp=last_trade_timestamp,
-            metadata={"type": "trd"},
-        )
-
+    async def publish_trades(self, trades: List[Trade], now: datetime) -> bool:
+        """Publish trades to all sinks"""
         publish_success = True
-        # Publish to all sinks
+
         for sink in self.sinks.values():
-            if sink.can_publish():
-                if await sink.publish(combined_message):
-                    logger.debug(f"Published {len(trades)} trades to {sink.sink_id}")
-                else:
-                    logger.warning(f"Failed to publish trades to {sink.sink_id}")
-                    publish_success = False
+            if not sink.can_publish("trd"):
+                continue
+
+            if await sink.publish_trades(trades, now):
+                logger.debug(f"Published {len(trades)} trades to {sink.sink_id}")
+            else:
+                logger.warning(f"Failed to publish trades to {sink.sink_id}")
+                publish_success = False
 
         return publish_success
 

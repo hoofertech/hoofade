@@ -27,8 +27,6 @@ from web.server import app, init_app
 
 logger = logging.getLogger(__name__)
 
-PUBLISH_PORTFOLIO_AFTER_EACH_TRADE = False
-
 
 def create_sources() -> Dict[str, TradeSource]:
     """Create trade sources from configuration"""
@@ -113,8 +111,8 @@ class TradePublisher:
 
                 if last_report_time is not None:
                     if now is None or last_report_time > now:
-                        logger.info(f"Updating now to {last_report_time} after loading trades")
                         now = last_report_time - timedelta(seconds=1)
+                        logger.info(f"Updating now to {now} after loading trades")
 
             should_post_portfolio = (
                 now is not None and await self.position_service.should_post_portfolio(now)
@@ -138,10 +136,7 @@ class TradePublisher:
                 self.position_service.merged_positions = (
                     await self.position_service.get_merged_positions()
                 )
-            (
-                new_trades,
-                portfolio_profit_takers,
-            ) = await self.trade_service.get_new_trades()
+            new_trades = await self.trade_service.get_new_trades()
             logger.info(f"Loaded {len(new_trades)} trades")
 
             if should_post_portfolio and now is not None:
@@ -151,39 +146,29 @@ class TradePublisher:
                     else now
                 )
 
+                logger.info(f"  Last trade timestamp: {last_trade_timestamp}")
+
                 # Remove any portfolio published with a greater timestamp
                 await self.db.remove_future_portfolio_messages(last_trade_timestamp)
                 await self.position_service.publish_portfolio(
                     self.position_service.merged_positions, last_trade_timestamp, now
                 )
+                for sink in self.position_service.sinks.values():
+                    sink.update_portfolio(self.position_service.merged_positions)
 
-            if new_trades:
-                logger.info(f"Applying {len(new_trades)} portfolio profit takers")
-                for new_trade in new_trades:
-                    await self.position_service.apply_new_trades(
-                        new_trade, self.position_service.merged_positions
-                    )
-
-            # Now publish trades
-            if new_trades:
+            if now is not None:
                 logger.info(f"Publishing {len(new_trades)} trades.")
-                await self.trade_service.publish_trades(new_trades)
+                await self.trade_service.publish_trades(new_trades, now)
                 logger.info(f"Published {len(new_trades)} trades.")
-                last_trade_timestamp = max(trade.timestamp for trade in new_trades)
-                if PUBLISH_PORTFOLIO_AFTER_EACH_TRADE:
-                    await self.position_service.publish_portfolio(
-                        self.position_service.merged_positions,
-                        last_trade_timestamp + timedelta(seconds=1),
-                        last_trade_timestamp + timedelta(seconds=1),
-                        save_portfolio_post=False,
-                    )
+            else:
+                logger.warning("No trades to published, as 'now' is not set")
 
             # Check if all sources are done
             for source in self.sources.values():
                 all_sources_done = all_sources_done or source.is_done()
                 max_sleep = max(max_sleep, source.get_sleep_time())
 
-            if all_sources_done:
+            if all_sources_done or not self.sources:
                 logger.info("All sources are done, exiting")
                 break
 

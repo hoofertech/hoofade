@@ -1,15 +1,17 @@
+import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, cast
+from typing import Dict, List, Optional
 
-from config import default_timezone
 from database import Database
 from formatters.portfolio import PortfolioFormatter
 from models.instrument import InstrumentType
 from models.position import Position
-from services.trade_processor import ProcessingResult, ProfitTaker
+from models.trade import Trade
+from services.trade_processor import ProfitTaker
 from sinks.base import MessageSink
 from sources.base import TradeSource
+from utils.datetime_utils import parse_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -33,31 +35,45 @@ class PositionService:
         timestamp: datetime,
         publish_timestamp: datetime,
         save_portfolio_post: bool = True,
-    ):
+    ) -> bool:
+        """Publish portfolio message if content has changed"""
+        # Format new portfolio message
         message = self.portfolio_formatter.format_portfolio(positions, timestamp)
-
-        # Check if the last post was a portfolio post
-        last_message = await self.db.get_last_message()
-        if (
-            last_message
-            and last_message.message_type == "pfl"
-            and last_message.content.split("\n", 1)[1] == message.content.split("\n", 1)[1]
-        ):
-            logger.info("Last message was a portfolio post with the same content. Skipping.")
+        content = message.content.split("\n", 1)  # Remove timestamp header
+        if len(content) > 1:
+            content = content[1]
         else:
-            publish_success = True
-            for sink in self.sinks.values():
-                if sink.can_publish():
-                    if not await sink.publish(message):
-                        publish_success = False
-                        logger.error(f"Failed to publish portfolio to {sink.sink_id}")
+            content = ""
 
-            if publish_success and save_portfolio_post:
-                # Save portfolio post for all sources since it's consolidated
-                await self._save_portfolio_post(publish_timestamp)
-                logger.info(
-                    f"Successfully published consolidated portfolio at {publish_timestamp}"
-                )
+        # Check last portfolio message for duplicate content
+        last_portfolio = await self.db.get_last_portfolio_message()
+        if last_portfolio:
+            last_content = self.portfolio_formatter.format_portfolio(
+                [Position.from_dict(p) for p in json.loads(last_portfolio["portfolio"])],
+                parse_datetime(last_portfolio["timestamp"]),
+            ).content.split("\n", 1)
+            if len(last_content) > 1:
+                last_content = last_content[1]
+            else:
+                last_content = ""
+
+            if last_content == content:
+                logger.info("Last portfolio message has same content. Skipping.")
+                return True
+
+        # Publish to sinks if content has changed
+        publish_success = True
+        for sink in self.sinks.values():
+            if not await sink.publish_portfolio(positions, timestamp):
+                logger.error(f"Failed to publish portfolio to {sink.sink_id}")
+                publish_success = False
+
+        if publish_success and save_portfolio_post:
+            # Save portfolio post for all sources since it's consolidated
+            await self._save_portfolio_post(publish_timestamp)
+            logger.info(f"Successfully published consolidated portfolio at {publish_timestamp}")
+
+        return publish_success
 
     async def should_post_portfolio(self, now: datetime) -> bool:
         """Check if we should post portfolio based on last post time and type"""
@@ -82,11 +98,7 @@ class PositionService:
                 logger.warning(f"No portfolio post found for source_id: {source_id}")
                 return None
 
-            # Ensure the timestamp is timezone-aware
-            if last_post.tzinfo is None:
-                last_post = last_post.replace(tzinfo=default_timezone())
-
-            return cast(datetime, last_post)
+            return last_post
         except Exception as e:
             logger.error(f"Error getting last portfolio post: {str(e)}")
             return None
@@ -98,14 +110,12 @@ class PositionService:
         except Exception as e:
             logger.error(f"Error saving portfolio post: {str(e)}")
 
-    async def apply_new_trades(self, new_trade: ProcessingResult, positions: List[Position]):
+    @staticmethod
+    async def apply_new_trade(trade: Trade, positions: List[Position]):
         """
         Apply a new trade to the portfolio positions.
         Returns True if successfully applied.
         """
-        trade = new_trade
-        if isinstance(trade, ProfitTaker):
-            trade = trade.closing_trade
         # Find matching position
         for position in positions:
             if position.instrument == trade.instrument:

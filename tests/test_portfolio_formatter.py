@@ -68,8 +68,6 @@ def test_format_portfolio(portfolio_formatter, sample_positions):
     timestamp = datetime.now(default_timezone())
     message = portfolio_formatter.format_portfolio(sample_positions, timestamp)
 
-    logger.info(f"message: {message.content}")
-
     # Check content structure
     lines = message.content.split("\n")
     expected_date = timestamp.strftime("%d %b %Y %H:%M").upper()

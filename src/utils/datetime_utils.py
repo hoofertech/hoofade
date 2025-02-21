@@ -25,7 +25,7 @@ def format_datetime(dt: Optional[datetime]) -> Optional[str]:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=default_timezone())
 
-    return dt.strftime("%Y%m%dT%H%M%S.000Z")
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def format_date(dt: Optional[date]) -> Optional[str]:
@@ -45,13 +45,18 @@ def format_date(dt: Optional[date]) -> Optional[str]:
     return dt.strftime("%Y-%m-%d")
 
 
-def parse_datetime(dt_str: Optional[str]) -> Optional[datetime]:
+def parse_datetime(dt_str: str) -> datetime:
     """Parse datetime string in various formats"""
     if not dt_str:
-        return None
+        return datetime.min
 
     try:
-        return datetime.fromisoformat(dt_str)
+        return datetime.fromisoformat(dt_str).replace(tzinfo=default_timezone())
     except ValueError as e:
         logger.error(f"Failed to parse datetime: {dt_str}")
         raise ValueError(f"Unable to parse datetime string: {dt_str}") from e
+
+
+def parse_date(dt_str: str) -> date:
+    """Parse date string in various formats"""
+    return datetime.strptime(dt_str, "%Y-%m-%d").date()

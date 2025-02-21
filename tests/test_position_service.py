@@ -21,14 +21,15 @@ async def test_publish_portfolio(
         mock_source.get_positions(), test_timestamp, test_timestamp
     )
 
-    assert len(mock_sink.messages) == 1
-    message = mock_sink.messages[0]
+    assert len(mock_sink.published_portfolios) == 1
+    published_positions = mock_sink.published_portfolios[0]
+    assert mock_sink.last_portfolio_timestamp == test_timestamp
 
-    # Verify content structure
-    lines = message.content.split("\n")
-    expected_date = test_timestamp.strftime("%d %b %Y %H:%M").upper()
-    assert lines[0] == f"Portfolio on {expected_date}"
-    assert message.metadata["type"] == "pfl"
+    # Verify positions match
+    assert len(published_positions) == len(sample_positions)
+    for actual, expected in zip(published_positions, sample_positions):
+        assert actual.instrument.symbol == expected.instrument.symbol
+        assert actual.quantity == expected.quantity
 
 
 @pytest.mark.asyncio

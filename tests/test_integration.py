@@ -1,6 +1,5 @@
 import pytest
 
-from formatters.trade import TradeFormatter
 from models.instrument import OptionType
 
 
@@ -9,7 +8,6 @@ async def test_end_to_end_flow_with_option_trade(
     test_timestamp, mock_source, mock_sink, call_option_instrument
 ):
     # Create an option trade
-
     option_trade = {
         "accountId": "U7170000",
         "currency": call_option_instrument.currency,
@@ -28,26 +26,20 @@ async def test_end_to_end_flow_with_option_trade(
 
     mock_source.trades = [option_trade]
 
-    # Setup
-    formatter = TradeFormatter()
-
     # Process trade from source
     success, _ = await mock_source.load_last_day_trades()
     assert success
     trades = mock_source.get_last_day_trades()
     assert len(trades) == 1
 
-    # Format trade
-    message = formatter._format_trade(trades[0])
-
     # Publish to sink
-    assert await mock_sink.publish(message)
-    assert len(mock_sink.messages) == 1
+    assert await mock_sink.publish_trades(trades, test_timestamp)
+    assert len(mock_sink.published_trades) == 1
 
-    # Verify message content
-    published_message = mock_sink.messages[0]
-    assert "$AAPL" in published_message.content
-    assert "15JUN24" in published_message.content
-    assert "$150C" in published_message.content
-    assert "666" in published_message.content
-    assert "$3.50" in published_message.content
+    # Verify trade content
+    published_trades = mock_sink.published_trades[0]
+    assert len(published_trades) == 1
+    published_trade = published_trades[0]
+    assert published_trade.instrument.symbol == "AAPL"
+    assert published_trade.quantity == 666
+    assert float(published_trade.price) == 3.50

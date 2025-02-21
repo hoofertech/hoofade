@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 
-from utils.datetime_utils import format_datetime
+from utils.datetime_utils import format_datetime, parse_datetime
 
 
 @dataclass
@@ -31,7 +31,7 @@ class DBMessage:
         return DBMessage(
             id=data["id"],
             content=data["content"],
-            timestamp=data["timestamp"],
+            timestamp=parse_datetime(data["timestamp"]),
             message_metadata=json.loads(data["message_metadata"]),
             source_id=data["source_id"],
             message_type=data["message_type"],

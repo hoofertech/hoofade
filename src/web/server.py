@@ -37,6 +37,7 @@ async def get_messages(
     before: Optional[str] = None,
     after: Optional[str] = None,
     type: Optional[str] = None,
+    granularity: Optional[str] = None,
 ):
     logger.info(
         f"Getting messages with limit: {limit}, before: {before}, after: {after}, type: {type}"
@@ -46,20 +47,21 @@ async def get_messages(
 
     try:
         # Parse datetime parameters
-        before_dt = parse_datetime(before)
-        after_dt = parse_datetime(after)
+        before_dt = parse_datetime(before) if before else None
+        after_dt = parse_datetime(after) if after else None
 
         messages = await db.get_messages(
             limit=limit,
             before=before_dt,
             after=after_dt,
             message_type=type,
+            granularity=granularity,
         )
 
         return {"messages": messages}
     except ValueError as e:
-        logger.error(f"Datetime parsing error: {str(e)}")
+        logger.error(f"Datetime parsing error: {str(e)}", exc_info=True)
         return {"error": f"Invalid datetime format: {str(e)}"}, 422
     except Exception as e:
-        logger.error(f"Error fetching messages: {str(e)}")
+        logger.error(f"Error fetching messages: {str(e)}", exc_info=True)
         return {"error": str(e)}, 500

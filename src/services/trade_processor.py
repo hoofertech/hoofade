@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple, Union
 from models.instrument import Instrument, InstrumentType
 from models.position import Position
 from models.trade import Trade
+from utils.datetime_utils import format_datetime, parse_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,30 @@ class CombinedTrade:
     def price(self) -> Decimal:
         """Get the price as the weighted price"""
         return self.weighted_price
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "CombinedTrade":
+        return cls(
+            instrument=Instrument.from_dict(data),
+            quantity=Decimal(data["quantity"]),
+            weighted_price=Decimal(data["price"]),
+            trades=[Trade.from_dict(t) for t in data["trades"]],
+            timestamp=parse_datetime(data["timestamp"]),
+            currency=data["currency"],
+            side=data["side"],
+        )
+
+    def to_dict(self) -> Dict:
+        return {
+            "ttype": "combined_trade",
+            **self.instrument.to_dict(),
+            "quantity": str(self.quantity),
+            "price": str(self.weighted_price),
+            "trades": [t.to_dict() for t in self.trades],
+            "timestamp": format_datetime(self.timestamp),
+            "currency": self.currency,
+            "side": self.side,
+        }
 
 
 @dataclass
@@ -57,6 +82,24 @@ class ProfitTaker:
     def closing_trade(self) -> CombinedTrade:
         """Get the side from the buy or sell trade"""
         return self.buy_trade if self.buy_trade.trades else self.sell_trade
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "ProfitTaker":
+        return cls(
+            buy_trade=CombinedTrade.from_dict(data["buy_trade"]),
+            sell_trade=CombinedTrade.from_dict(data["sell_trade"]),
+            profit_amount=Decimal(data["profit_amount"]),
+            profit_percentage=Decimal(data["profit_percentage"]),
+        )
+
+    def to_dict(self) -> Dict:
+        return {
+            "ttype": "profit_taker",
+            "buy_trade": self.buy_trade.to_dict(),
+            "sell_trade": self.sell_trade.to_dict(),
+            "profit_amount": str(self.profit_amount),
+            "profit_percentage": str(self.profit_percentage),
+        }
 
 
 ProcessingResult = Union[Trade, CombinedTrade, ProfitTaker]

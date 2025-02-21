@@ -1,8 +1,13 @@
+import logging
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
+from typing import Any, Dict, Optional
+
+from utils.datetime_utils import format_date, parse_date
+
+logger = logging.getLogger(__name__)
 
 
 class InstrumentType(Enum):
@@ -20,6 +25,23 @@ class OptionDetails:
     strike: Decimal
     expiry: date
     option_type: OptionType
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "strike": str(self.strike),
+            "expiry": format_date(self.expiry),
+            "option_type": self.option_type.value,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any] | None) -> "OptionDetails | None":
+        if data is None:
+            return None
+        return cls(
+            strike=Decimal(data["strike"]),
+            expiry=parse_date(data["expiry"]),
+            option_type=OptionType(data["option_type"]),
+        )
 
 
 @dataclass
@@ -81,3 +103,20 @@ class Instrument:
             return f"{self.symbol} {self.expiry:%d-%b-%Y} {self.strike:.2f} {option_type_str}"
         else:
             return f"{self.symbol} (Unknown Type)"
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Instrument":
+        return cls(
+            symbol=data["symbol"],
+            type=InstrumentType(data["type"]),
+            currency=data["currency"],
+            option_details=OptionDetails.from_dict(data.get("option_details", None)),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "symbol": self.symbol,
+            "type": self.type.value,
+            "currency": self.currency,
+            "option_details": self.option_details.to_dict() if self.option_details else None,
+        }

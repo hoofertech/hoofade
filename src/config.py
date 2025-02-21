@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def default_timezone():
-    return pytz.timezone("America/New_York")
+    return pytz.timezone("GMT")
 
 
 def get_source_configs() -> Dict[str, Dict[str, Any]]:
@@ -69,10 +69,7 @@ def get_sink_configs() -> Dict[str, Dict[str, Any]]:
         }
 
     # CLI
-    if (
-        os.getenv("CLI_ENABLED", "false").lower() == "true"
-        or os.getenv("TWITTER_ENABLED", "false").lower() != "true"
-    ):
+    if os.getenv("CLI_ENABLED", "false").lower() == "true":
         logger.info("CLI sink enabled")
         sinks["cli"] = {
             "type": "cli",
