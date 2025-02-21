@@ -153,6 +153,9 @@ class TradePublisher:
 
                 # Remove any portfolio published with a greater timestamp
                 await self.db.remove_future_portfolio_messages(last_trade_timestamp)
+                logger.info("Flushing trades before reloading positions.")
+                await self.trade_service.publish_trades_svc([], now)
+                logger.info("Flushed trades.")
                 await self.position_service.publish_portfolio_svc(
                     self.position_service.merged_positions, last_trade_timestamp, now
                 )
