@@ -1,4 +1,3 @@
-import copy
 import json
 import logging
 from datetime import datetime, timedelta
@@ -22,7 +21,6 @@ class DatabaseSink(MessageSink):
         super().__init__(sink_id)
         self.db = db
         self.bucket_manager = TradeBucketManager()
-        self.positions = []
 
     async def initialize(self) -> bool:
         """Initialize sink state from database"""
@@ -35,45 +33,35 @@ class DatabaseSink(MessageSink):
 
             latest_portfolio_json = json.loads(latest_portfolio["portfolio"])
             self.update_portfolio([Position.from_dict(p) for p in latest_portfolio_json])
-            logger.info(f"Loaded {len(self.positions)} positions from last portfolio")
 
             # Get today's trades
             logger.info(f"Latest portfolio timestamp: {latest_portfolio['timestamp']}")
             today = parse_datetime(latest_portfolio["timestamp"]).replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
-            trades_today = await self.db.get_trades_after(today)
+            trades_today = [
+                Trade.from_dict(trade) for trade in await self.db.get_trades_after(today)
+            ]
 
             max_timestamp = today
 
             if trades_today:
                 logger.info(f"Found {len(trades_today)} trades from today")
-                trades = []
-                for trade_data in trades_today:
-                    trade = Trade.from_dict(trade_data)
-                    trades.append(trade)
-                    await PositionService.apply_new_trade(trade, self.positions)
-
-                # Initialize last bucket times based on most recent trade
-                max_timestamp = max(trade.timestamp for trade in trades)
-                logger.info(f"Applied {len(trades)} trades to rebuild position state")
-
+                max_timestamp = max(trade.timestamp for trade in trades_today)
 
             self.bucket_manager.last_bucket_time = {
-                "15m": self._round_time_down(
+                "15m": TradeBucketManager.round_time_down(
                     today, self.bucket_manager.intervals["15m"]
                 ),
-                "1h": self._round_time_down(
+                "1h": TradeBucketManager.round_time_down(
                     today, self.bucket_manager.intervals["1h"]
                 ),
-                "1d": self._round_time_down(
+                "1d": TradeBucketManager.round_time_down(
                     today, self.bucket_manager.intervals["1d"]
                 ),
             }
 
-            return await self.publish_trades(
-                [Trade.from_dict(trade) for trade in trades_today], max_timestamp
-            )
+            return await self.publish_trades(trades_today, max_timestamp)
 
         except Exception as e:
             logger.error(f"Error initializing database sink: {str(e)}", exc_info=True)
@@ -91,7 +79,7 @@ class DatabaseSink(MessageSink):
             # Process and save completed buckets
             for granularity, buckets in completed_buckets.items():
                 for bucket_trades in buckets:
-                    start_time = self.bucket_manager._round_time_down(
+                    start_time = TradeBucketManager.round_time_down(
                         bucket_trades[0].timestamp, self.bucket_manager.intervals[granularity]
                     )
                     end_time = start_time + self.bucket_manager.intervals[granularity]
@@ -99,19 +87,21 @@ class DatabaseSink(MessageSink):
                         bucket_trades, start_time, end_time, granularity
                     )
 
-            for bucket_trades in completed_buckets["15m"]:
-                new_trades = bucket_trades
-                if new_trades:
-                    logger.info(f"Applying {len(new_trades)} trades to portfolio")
-                for new_trade in new_trades:
-                    await PositionService.apply_new_trade(new_trade, self.positions)
+                    new_trades = bucket_trades
+                    if new_trades:
+                        logger.info(f"Applying {len(new_trades)} trades to portfolio")
+                    for new_trade in new_trades:
+                        await PositionService.apply_new_trade(
+                            new_trade, self.bucket_manager.positions[granularity]
+                        )
 
-                logger.info(f"Published {len(new_trades)} trades.")
-                if self.PUBLISH_PORTFOLIO_AFTER_EACH_TRADE:
-                    last_trade_timestamp = max(trade.timestamp for trade in new_trades)
-                    await self.publish_portfolio(
-                        self.positions, last_trade_timestamp + timedelta(seconds=1)
-                    )
+                    logger.info(f"Published {len(new_trades)} trades.")
+                    if self.PUBLISH_PORTFOLIO_AFTER_EACH_TRADE:
+                        last_trade_timestamp = max(trade.timestamp for trade in new_trades)
+                        await self.publish_portfolio(
+                            self.bucket_manager.positions[granularity],
+                            last_trade_timestamp + timedelta(seconds=1),
+                        )
 
             return True
         except Exception as e:
@@ -131,7 +121,7 @@ class DatabaseSink(MessageSink):
     ) -> None:
         """Process trades and create/save message"""
         # Process trades to get combined trades and profit takers
-        processor = TradeProcessor(self.positions)
+        processor = TradeProcessor(self.bucket_manager.positions[granularity])
         processed_results, _ = processor.process_trades(trades)
         max_timestamp = max(trade.timestamp for trade in trades)
 
@@ -153,5 +143,5 @@ class DatabaseSink(MessageSink):
         )
 
     def update_portfolio(self, positions: List[Position]) -> bool:
-        self.positions = copy.deepcopy(positions)
+        self.bucket_manager.update_positions(positions)
         return True

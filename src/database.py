@@ -450,6 +450,7 @@ class Database:
             logger.error(f"Error getting trades after timestamp: {e}")
             return []
 
+
 async def create_db() -> Database:
     """Create database connection"""
     logger.info("Creating database connection: %s", get_db_url())

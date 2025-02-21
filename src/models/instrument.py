@@ -35,12 +35,12 @@ class OptionDetails:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any] | None) -> "OptionDetails | None":
-        if data is None:
+        if data is None or data.get("option_type") is None:
             return None
         return cls(
-            strike=Decimal(data["strike"]) if data.get("strike") else None,
-            expiry=parse_date(data["expiry"]) if data.get("expiry") else None,
-            option_type=OptionType(data["option_type"]) if data.get("option_type") else None,
+            strike=Decimal(data["strike"]),
+            expiry=parse_date(data["expiry"]),
+            option_type=OptionType(data["option_type"]),
         )
 
 
@@ -106,7 +106,6 @@ class Instrument:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Instrument":
-        logger.info(f"Instrument from dict: {data}")
         return cls(
             symbol=data["symbol"],
             type=InstrumentType(data.get("type", data.get("instrument_type"))),

@@ -1,7 +1,9 @@
+import copy
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
+from models.position import Position
 from models.trade import Trade
 
 logger = logging.getLogger(__name__)
@@ -20,6 +22,16 @@ class TradeBucketManager:
             "1h": timedelta(hours=1),
             "1d": timedelta(days=1),
         }
+        self.positions: Dict[str, List[Position]] = {
+            "15m": [],
+            "1h": [],
+            "1d": [],
+        }
+
+    def update_positions(self, positions: List[Position]) -> None:
+        """Update positions for each granularity"""
+        for granularity in self.positions.keys():
+            self.positions[granularity] = copy.deepcopy(positions)
 
     def add_trades(self, trades: List[Trade]) -> None:
         """Add trades to appropriate time buckets"""
@@ -67,7 +79,7 @@ class TradeBucketManager:
             if last_time is None and self.trade_buckets[granularity]:
                 first_trade_time = self.trade_buckets[granularity][-1].timestamp
                 last_trade_time = self.trade_buckets[granularity][0].timestamp
-                self.last_bucket_time[granularity] = self._round_time_down(
+                self.last_bucket_time[granularity] = TradeBucketManager.round_time_down(
                     first_trade_time, interval
                 )
                 logger.info(
@@ -125,7 +137,8 @@ class TradeBucketManager:
 
         return trades
 
-    def _round_time_down(self, dt: datetime, interval: timedelta) -> datetime:
+    @staticmethod
+    def round_time_down(dt: datetime, interval: timedelta) -> datetime:
         """Round datetime down to nearest interval"""
         seconds = int(interval.total_seconds())
         timestamp = int(dt.timestamp())

@@ -15,6 +15,7 @@ from services.position_service import PositionService
 from services.trade_processor import TradeProcessor
 from sinks.base import MessageSink
 from utils.datetime_utils import parse_datetime
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,7 +49,7 @@ class MessagePublisher(MessageSink):
                 hour=0, minute=0, second=0, microsecond=0
             )
             trades_today = await self.db.get_trades_after(today)
-            
+
             if trades_today:
                 logger.info(f"Found {len(trades_today)} trades from today")
                 trades = []
