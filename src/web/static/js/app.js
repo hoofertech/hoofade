@@ -208,6 +208,7 @@ class MessageFeed {
       const messageElement = this.createMessageElement(message);
       this.messagesContainer.appendChild(messageElement);
     });
+    this.updateInProgressMessage();
   }
 
   async updateInProgressMessage() {
