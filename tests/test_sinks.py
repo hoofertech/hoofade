@@ -74,8 +74,8 @@ async def test_twitter_sink_rate_limit(twitter_sink):
 
 
 @pytest.fixture
-def cli_sink():
-    return CLISink(sink_id="test-cli")
+def cli_sink(db_session):
+    return CLISink(sink_id="test-cli", db=db_session)
 
 
 @pytest.mark.asyncio

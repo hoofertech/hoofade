@@ -322,7 +322,7 @@ class Database:
                 await db.commit()
                 return True
         except Exception as e:
-            logger.error(f"Error saving trade message: {e}")
+            logger.error(f"Error saving trade message: {e}", exc_info=True)
             return False
 
     async def save_portfolio_message(self, timestamp: datetime, positions: List[Position]) -> bool:
@@ -431,25 +431,24 @@ class Database:
         else:
             return Trade.from_dict(trade_dict)
 
-    async def get_trades_between(self, start_time: datetime, end_time: datetime) -> List[Dict]:
-        """Get trades between two timestamps"""
+    async def get_trades_after(self, timestamp: datetime) -> List[Dict]:
+        """Get all trades after a given timestamp"""
         try:
             async with aiosqlite.connect(self.db_path) as db:
                 db.row_factory = aiosqlite.Row
                 cursor = await db.execute(
                     """
                     SELECT * FROM trades 
-                    WHERE timestamp > ? AND timestamp <= ?
+                    WHERE timestamp >= ?
                     ORDER BY timestamp ASC
                     """,
-                    (format_datetime(start_time), format_datetime(end_time)),
+                    (format_datetime(timestamp),),
                 )
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
         except Exception as e:
-            logger.error(f"Error getting trades between timestamps: {e}")
+            logger.error(f"Error getting trades after timestamp: {e}")
             return []
-
 
 async def create_db() -> Database:
     """Create database connection"""

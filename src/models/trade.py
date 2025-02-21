@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -5,6 +6,8 @@ from typing import Dict
 
 from models.instrument import Instrument
 from utils.datetime_utils import format_datetime, parse_datetime
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass

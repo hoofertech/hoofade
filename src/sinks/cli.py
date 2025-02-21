@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 from typing import List
 
+from database import Database
 from models.position import Position
 from models.trade import Trade
 from utils.datetime_utils import format_datetime
@@ -12,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 class CLISink(MessagePublisher):
-    def __init__(self, sink_id: str):
-        MessagePublisher.__init__(self, sink_id)
+    def __init__(self, sink_id: str, db: Database):
+        MessagePublisher.__init__(self, sink_id, db)
 
     def can_publish(self, message_type: str | None = None) -> bool:
         return True

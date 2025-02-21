@@ -46,7 +46,7 @@ class PositionService:
             content = ""
 
         # Check last portfolio message for duplicate content
-        last_portfolio = await self.db.get_last_portfolio_message(timestamp)
+        last_portfolio = await self.db.get_last_portfolio_message(before=timestamp)
         if last_portfolio:
             last_content = self.portfolio_formatter.format_portfolio(
                 [Position.from_dict(p) for p in json.loads(last_portfolio["portfolio"])],
@@ -58,19 +58,8 @@ class PositionService:
                 last_content = ""
 
             if last_content == content:
-                # Check if there were any trades since last portfolio
-                last_portfolio_time = parse_datetime(last_portfolio["timestamp"])
-                trades_since_portfolio = await self.db.get_trades_between(
-                    last_portfolio_time, timestamp
-                )
-
-                if not trades_since_portfolio:
-                    logger.info(
-                        "Last portfolio message has same content and no new trades. Skipping."
-                    )
-                    return True
-                else:
-                    logger.info(f"Found {len(trades_since_portfolio)} trades since last portfolio")
+                logger.info("Last portfolio message has same content and no new trades. Skipping.")
+                return True
 
         # Publish to sinks if content has changed or there were trades
         publish_success = True

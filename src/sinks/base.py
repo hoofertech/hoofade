@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import List
 
+from database import Database
 from models.position import Position
 from models.trade import Trade
 
@@ -18,8 +19,9 @@ from models.trade import Trade
 class MessageSink(ABC):
     PUBLISH_PORTFOLIO_AFTER_EACH_TRADE = False
 
-    def __init__(self, sink_id: str):
+    def __init__(self, sink_id: str, db: Database | None = None):
         self.sink_id = sink_id
+        self.db = db
 
     def can_publish(self, message_type: str | None = None) -> bool:
         return True
@@ -37,4 +39,9 @@ class MessageSink(ABC):
     @abstractmethod
     def update_portfolio(self, positions: List[Position]) -> bool:
         """Update portfolio to the sink"""
+        pass
+
+    @abstractmethod
+    async def initialize(self) -> bool:
+        """Initialize sink state"""
         pass

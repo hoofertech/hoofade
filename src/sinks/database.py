@@ -1,4 +1,5 @@
 import copy
+import json
 import logging
 from datetime import datetime, timedelta
 from typing import List
@@ -9,7 +10,7 @@ from models.trade import Trade
 from services.position_service import PositionService
 from services.trade_bucket_manager import TradeBucketManager
 from services.trade_processor import TradeProcessor
-from utils.datetime_utils import format_datetime
+from utils.datetime_utils import format_datetime, parse_datetime
 
 from .base import MessageSink
 
@@ -22,6 +23,61 @@ class DatabaseSink(MessageSink):
         self.db = db
         self.bucket_manager = TradeBucketManager()
         self.positions = []
+
+    async def initialize(self) -> bool:
+        """Initialize sink state from database"""
+        try:
+            # Get latest portfolio
+            latest_portfolio = await self.db.get_last_portfolio_message(datetime.now())
+            if not latest_portfolio:
+                logger.info("No portfolio found, skipping initialization")
+                return True
+
+            latest_portfolio_json = json.loads(latest_portfolio["portfolio"])
+            self.update_portfolio([Position.from_dict(p) for p in latest_portfolio_json])
+            logger.info(f"Loaded {len(self.positions)} positions from last portfolio")
+
+            # Get today's trades
+            logger.info(f"Latest portfolio timestamp: {latest_portfolio['timestamp']}")
+            today = parse_datetime(latest_portfolio["timestamp"]).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            trades_today = await self.db.get_trades_after(today)
+
+            max_timestamp = today
+
+            if trades_today:
+                logger.info(f"Found {len(trades_today)} trades from today")
+                trades = []
+                for trade_data in trades_today:
+                    trade = Trade.from_dict(trade_data)
+                    trades.append(trade)
+                    await PositionService.apply_new_trade(trade, self.positions)
+
+                # Initialize last bucket times based on most recent trade
+                max_timestamp = max(trade.timestamp for trade in trades)
+                logger.info(f"Applied {len(trades)} trades to rebuild position state")
+
+
+            self.bucket_manager.last_bucket_time = {
+                "15m": self._round_time_down(
+                    today, self.bucket_manager.intervals["15m"]
+                ),
+                "1h": self._round_time_down(
+                    today, self.bucket_manager.intervals["1h"]
+                ),
+                "1d": self._round_time_down(
+                    today, self.bucket_manager.intervals["1d"]
+                ),
+            }
+
+            return await self.publish_trades(
+                [Trade.from_dict(trade) for trade in trades_today], max_timestamp
+            )
+
+        except Exception as e:
+            logger.error(f"Error initializing database sink: {str(e)}", exc_info=True)
+            return False
 
     async def publish_trades(self, trades: List[Trade], now: datetime) -> bool:
         try:

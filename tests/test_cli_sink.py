@@ -20,8 +20,8 @@ def test_data_dir():
 
 
 @pytest.fixture
-def cli_sink():
-    return CLISink("test-cli-sink")
+def cli_sink(db_session):
+    return CLISink("test-cli-sink", db_session)
 
 
 @pytest.fixture

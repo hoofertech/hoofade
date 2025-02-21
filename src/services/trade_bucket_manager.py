@@ -24,8 +24,8 @@ class TradeBucketManager:
     def add_trades(self, trades: List[Trade]) -> None:
         """Add trades to appropriate time buckets"""
         logger.info(f">>> Adding {len(trades)} trades to buckets:")
-        for t in trades:
-            logger.info(f"  {t.instrument} at {t.timestamp}")
+        # for t in trades:
+        #     logger.info(f"  {t.instrument} at {t.timestamp}")
         for trade in trades:
             for granularity in self.trade_buckets.keys():
                 self.trade_buckets[granularity].append(trade)
@@ -57,6 +57,8 @@ class TradeBucketManager:
                 continue
             logger.info(f"  Processing {granularity} bucket:")
             logger.info(f"    Current trades in bucket: {len(self.trade_buckets[granularity])}")
+            # for t in self.trade_buckets[granularity]:
+            #     logger.info(f"      {t.instrument} at {t.timestamp}")
 
             last_time = self.last_bucket_time[granularity]
             logger.info(f"    Last bucket time: {last_time}")

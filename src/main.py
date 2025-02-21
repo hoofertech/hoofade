@@ -54,17 +54,15 @@ def create_sources() -> Dict[str, TradeSource]:
     return sources
 
 
-def create_sinks(
-    db: Database,
-) -> Dict[str, MessageSink]:
-    """Create message sinks from configuration"""
+async def create_sinks(db: Database) -> Dict[str, MessageSink]:
     sinks = {}
     configs = get_sink_configs()
 
     for sink_id, config in configs.items():
         if config["type"] == "twitter":
-            sinks[sink_id] = TwitterSink(
+            sink = TwitterSink(
                 sink_id=config["sink_id"],
+                db=db,
                 bearer_token=config["bearer_token"],
                 api_key=config["api_key"],
                 api_secret=config["api_secret"],
@@ -72,9 +70,14 @@ def create_sinks(
                 access_token_secret=config["access_token_secret"],
             )
         elif config["type"] == "cli":
-            sinks[sink_id] = CLISink(sink_id=config["sink_id"])
+            sink = CLISink(sink_id=config["sink_id"], db=db)
         elif config["type"] == "database":
-            sinks[sink_id] = DatabaseSink(sink_id=config["sink_id"], db=db)
+            sink = DatabaseSink(sink_id=config["sink_id"], db=db)
+        else:
+            raise ValueError(f"Unknown sink type: {config['type']}")
+
+        await sink.initialize()
+        sinks[sink_id] = sink
 
     return sinks
 
@@ -207,7 +210,7 @@ async def main():
 
     sources = create_sources()
     db = await create_db()
-    sinks = create_sinks(db)
+    sinks = await create_sinks(db)
     formatter = TradeFormatter()
 
     # Start web server in a separate thread

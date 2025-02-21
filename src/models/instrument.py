@@ -38,9 +38,9 @@ class OptionDetails:
         if data is None:
             return None
         return cls(
-            strike=Decimal(data["strike"]),
-            expiry=parse_date(data["expiry"]),
-            option_type=OptionType(data["option_type"]),
+            strike=Decimal(data["strike"]) if data.get("strike") else None,
+            expiry=parse_date(data["expiry"]) if data.get("expiry") else None,
+            option_type=OptionType(data["option_type"]) if data.get("option_type") else None,
         )
 
 
@@ -92,7 +92,7 @@ class Instrument:
     @property
     def option_type(self) -> OptionType:
         if self.type != InstrumentType.OPTION or self.option_details is None:
-            raise ValueError("Option type is only defined for options")
+            raise ValueError("Option type is only defined for options, got %s", self.type)
         return self.option_details.option_type
 
     def __str__(self) -> str:
@@ -106,11 +106,12 @@ class Instrument:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Instrument":
+        logger.info(f"Instrument from dict: {data}")
         return cls(
             symbol=data["symbol"],
-            type=InstrumentType(data["type"]),
+            type=InstrumentType(data.get("type", data.get("instrument_type"))),
             currency=data["currency"],
-            option_details=OptionDetails.from_dict(data.get("option_details", None)),
+            option_details=OptionDetails.from_dict(data),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -118,5 +119,5 @@ class Instrument:
             "symbol": self.symbol,
             "type": self.type.value,
             "currency": self.currency,
-            "option_details": self.option_details.to_dict() if self.option_details else None,
+            **(self.option_details.to_dict() if self.option_details else {}),
         }

@@ -38,8 +38,8 @@ class MockTradeSource(TradeSource):
 
 
 class MockMessageSink(MessagePublisher):
-    def __init__(self, sink_id: str):
-        MessagePublisher.__init__(self, sink_id)
+    def __init__(self, sink_id: str, db: Database):
+        MessagePublisher.__init__(self, sink_id, db)
         self.published_trades: List[List[Trade]] = []
         self.published_portfolios: List[List[Position]] = []
         self.last_trade_timestamp: Optional[datetime] = None
@@ -230,12 +230,12 @@ def mock_option_source(sample_option_trade_data):
 
 
 @pytest.fixture
-def mock_sink():
-    return MockMessageSink("test-sink")
+def mock_sink(db_session):
+    return MockMessageSink("test-sink", db_session)
 
 
 @pytest.fixture
-def twitter_sink():
+def twitter_sink(db_session):
     """Twitter sink with test credentials"""
     return TwitterSink(
         sink_id="test-twitter",
@@ -244,6 +244,7 @@ def twitter_sink():
         api_secret="test-api-secret",
         access_token="test-access-token",
         access_token_secret="test-access-token-secret",
+        db=db_session,
     )
 
 

@@ -5,6 +5,7 @@ from typing import List
 import tweepy
 
 from config import default_timezone
+from database import Database
 from formatters.message_splitter import MessageSplitter
 from formatters.portfolio import PortfolioFormatter
 from formatters.trade import TradeFormatter
@@ -26,8 +27,9 @@ class TwitterSink(MessagePublisher):
         api_secret: str,
         access_token: str,
         access_token_secret: str,
+        db: Database,
     ):
-        MessagePublisher.__init__(self, sink_id)
+        MessagePublisher.__init__(self, sink_id, db)
         self.client = tweepy.Client(
             bearer_token=bearer_token,
             consumer_key=api_key,
