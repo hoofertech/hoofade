@@ -36,7 +36,7 @@ class PositionService:
         publish_timestamp: datetime,
         save_portfolio_post: bool = True,
     ) -> bool:
-        """Publish portfolio message if content has changed"""
+        """Publish portfolio message if content has changed or there were trades since last portfolio"""
         # Format new portfolio message
         message = self.portfolio_formatter.format_portfolio(positions, timestamp)
         content = message.content.split("\n", 1)  # Remove timestamp header
@@ -46,7 +46,7 @@ class PositionService:
             content = ""
 
         # Check last portfolio message for duplicate content
-        last_portfolio = await self.db.get_last_portfolio_message()
+        last_portfolio = await self.db.get_last_portfolio_message(timestamp)
         if last_portfolio:
             last_content = self.portfolio_formatter.format_portfolio(
                 [Position.from_dict(p) for p in json.loads(last_portfolio["portfolio"])],
@@ -58,10 +58,21 @@ class PositionService:
                 last_content = ""
 
             if last_content == content:
-                logger.info("Last portfolio message has same content. Skipping.")
-                return True
+                # Check if there were any trades since last portfolio
+                last_portfolio_time = parse_datetime(last_portfolio["timestamp"])
+                trades_since_portfolio = await self.db.get_trades_between(
+                    last_portfolio_time, timestamp
+                )
 
-        # Publish to sinks if content has changed
+                if not trades_since_portfolio:
+                    logger.info(
+                        "Last portfolio message has same content and no new trades. Skipping."
+                    )
+                    return True
+                else:
+                    logger.info(f"Found {len(trades_since_portfolio)} trades since last portfolio")
+
+        # Publish to sinks if content has changed or there were trades
         publish_success = True
         for sink in self.sinks.values():
             if not await sink.publish_portfolio(positions, timestamp):

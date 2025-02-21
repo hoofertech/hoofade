@@ -387,7 +387,7 @@ class Database:
             "message_type": "pfl",
         }
 
-    async def get_last_portfolio_message(self) -> Optional[Dict[str, Any]]:
+    async def get_last_portfolio_message(self, before: datetime) -> Optional[Dict[str, Any]]:
         """Get the most recent portfolio message"""
         try:
             async with aiosqlite.connect(self.db_path) as db:
@@ -396,9 +396,11 @@ class Database:
                     """
                     SELECT timestamp, portfolio
                     FROM portfolio_messages
+                    WHERE timestamp < ?
                     ORDER BY timestamp DESC
                     LIMIT 1
-                    """
+                    """,
+                    (format_datetime(before),),
                 )
                 row = await cursor.fetchone()
                 return dict(row) if row else None
@@ -428,6 +430,25 @@ class Database:
             return CombinedTrade.from_dict(trade_dict)
         else:
             return Trade.from_dict(trade_dict)
+
+    async def get_trades_between(self, start_time: datetime, end_time: datetime) -> List[Dict]:
+        """Get trades between two timestamps"""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute(
+                    """
+                    SELECT * FROM trades 
+                    WHERE timestamp > ? AND timestamp <= ?
+                    ORDER BY timestamp ASC
+                    """,
+                    (format_datetime(start_time), format_datetime(end_time)),
+                )
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error getting trades between timestamps: {e}")
+            return []
 
 
 async def create_db() -> Database:
