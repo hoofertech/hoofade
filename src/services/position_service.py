@@ -120,13 +120,24 @@ class PositionService:
         for position in positions:
             if position.instrument == trade.instrument:
                 # Calculate the matched quantity
-                matched_quantity = (
-                    -abs(trade.quantity) if trade.side == "SELL" else abs(trade.quantity)
-                )
-                logger.info(
-                    f"Matched quantity: {matched_quantity} ({trade.side}) for {trade.instrument}"
-                )
-                position.quantity += matched_quantity
+                matched_quantity = -abs(trade.quantity) if trade.side == "SELL" else abs(trade.quantity)
+                logger.info(f"Matched quantity: {matched_quantity} ({trade.side}) for {trade.instrument}")
+                
+                old_quantity = position.quantity
+                new_quantity = old_quantity + matched_quantity
+                
+                # If adding to existing position in same direction, update average price
+                if (old_quantity > 0 and matched_quantity > 0) or (old_quantity < 0 and matched_quantity < 0):
+                    # Weighted average calculation
+                    position.average_price = (
+                        (abs(old_quantity) * position.average_price + abs(matched_quantity) * trade.price)
+                        / (abs(old_quantity) + abs(matched_quantity))
+                    )
+                    logger.info(
+                        f"Updated average price for {position.instrument} to {position.average_price:.2f}"
+                    )
+                
+                position.quantity = new_quantity
 
                 # If position is fully closed, remove it
                 if position.quantity == 0:
@@ -135,13 +146,9 @@ class PositionService:
                 else:
                     logger.info(
                         f"Updated position quantity for {position.instrument} "
-                        f"from {position.quantity - matched_quantity} to {position.quantity}"
+                        f"from {old_quantity} to {position.quantity}"
                     )
                 return
-
-        if isinstance(trade, ProfitTaker):
-            logger.error(f"Profit taker {trade} not applied")
-            return
 
         logger.info(f"No matching position found for {trade.instrument}")
         # If no matching position is found, create a new position
