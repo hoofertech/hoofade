@@ -28,6 +28,7 @@ A Python daemon that monitors IBKR trades using Flex Reports and automatically p
    - Click on "hoofade-positions"
       - Required fields:
          - [x] Account ID
+         - [x] Account Alias
          - [x] Currency
          - [x] Symbol
          - [x] Listing Exchange
@@ -41,6 +42,7 @@ A Python daemon that monitors IBKR trades using Flex Reports and automatically p
    - Click on "Trades"
       - Required fields:
          - [x] Account ID
+         - [x] Account Alias
          - [x] Currency
          - [x] Symbol
          - [x] Listing Exchange
@@ -84,6 +86,7 @@ A Python daemon that monitors IBKR trades using Flex Reports and automatically p
    - Click on "Trade Confirmation"
    - Required fields:
       - [x] Account ID
+      - [x] Account Alias
       - [x] Currency
       - [x] Symbol
       - [x] Listing Exchange
