@@ -38,6 +38,23 @@ A Python daemon that monitors IBKR trades using Flex Reports and automatically p
          - [x] Mark Price
          - [x] Cost Basis Price
          - [x] Strike
+   - Click on "Trades"
+      - Required fields:
+         - [x] Account ID
+         - [x] Currency
+         - [x] Symbol
+         - [x] Listing Exchange
+         - [x] Underlying Symbol
+         - [x] Trade ID
+         - [x] Strike
+         - [x] Expiry
+         - [x] Date/Time
+         - [x] Put/Call
+         - [x] Quantity
+         - [x] Trade Price
+         - [x] IB Commission
+         - [x] IB Commission Currency
+         - [x] Buy/Sell
    - Click on "Save"
 7. On the "Delivery Configuration" section:
    - Make sure all your target accounts are selected
