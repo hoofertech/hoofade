@@ -8,7 +8,6 @@ from formatters.portfolio import PortfolioFormatter
 from models.instrument import InstrumentType
 from models.position import Position
 from models.trade import Trade
-from services.trade_processor import ProfitTaker
 from sinks.base import MessageSink
 from sources.base import TradeSource
 from utils.datetime_utils import parse_datetime
@@ -120,23 +119,29 @@ class PositionService:
         for position in positions:
             if position.instrument == trade.instrument:
                 # Calculate the matched quantity
-                matched_quantity = -abs(trade.quantity) if trade.side == "SELL" else abs(trade.quantity)
-                logger.info(f"Matched quantity: {matched_quantity} ({trade.side}) for {trade.instrument}")
-                
+                matched_quantity = (
+                    -abs(trade.quantity) if trade.side == "SELL" else abs(trade.quantity)
+                )
+                logger.info(
+                    f"Matched quantity: {matched_quantity} ({trade.side}) for {trade.instrument}"
+                )
+
                 old_quantity = position.quantity
                 new_quantity = old_quantity + matched_quantity
-                
+
                 # If adding to existing position in same direction, update average price
-                if (old_quantity > 0 and matched_quantity > 0) or (old_quantity < 0 and matched_quantity < 0):
+                if (old_quantity > 0 and matched_quantity > 0) or (
+                    old_quantity < 0 and matched_quantity < 0
+                ):
                     # Weighted average calculation
                     position.cost_basis = (
-                        (abs(old_quantity) * position.cost_basis + abs(matched_quantity) * trade.price)
-                        / (abs(old_quantity) + abs(matched_quantity))
-                    )
+                        abs(old_quantity) * position.cost_basis
+                        + abs(matched_quantity) * trade.price
+                    ) / (abs(old_quantity) + abs(matched_quantity))
                     logger.info(
                         f"Updated average price for {position.instrument} to {position.cost_basis:.2f}"
                     )
-                
+
                 position.quantity = new_quantity
 
                 # If position is fully closed, remove it
