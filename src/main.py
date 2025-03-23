@@ -1,12 +1,13 @@
 import asyncio
 import logging
 import threading
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Dict
 
 import uvicorn
 from dotenv import load_dotenv
 
+from build_static import build_static_files
 from config import (
     get_sink_configs,
     get_source_configs,
@@ -55,6 +56,7 @@ def create_sources() -> Dict[str, TradeSource]:
 
 
 async def create_sinks(db: Database) -> Dict[str, MessageSink]:
+    """Create message sinks from configuration"""
     sinks = {}
     configs = get_sink_configs()
 
@@ -102,65 +104,25 @@ class TradePublisher:
         while True:
             all_sources_done = False
             max_sleep = 0
-            new_trades = []
 
-            # First process trades for all sources to get correct timestamp
-            for source in self.sources.values():
-                success, last_report_time = await source.load_last_day_trades()
-                logger.info(f"Loaded {last_report_time} trades for {source.source_id}")
-                if not success:
-                    logger.error(f"Failed to load trades for source {source.source_id}")
-                    continue
+            # Process trades for all sources to get correct timestamp
+            now = await self._load_trades()
 
-                if last_report_time is not None:
-                    if now is None or last_report_time > now:
-                        now = last_report_time - timedelta(seconds=1)
-                        logger.info(f"Updating now to {now} after loading trades")
-
+            # Check if we should post portfolio
             should_post_portfolio = (
                 now is not None and await self.position_service.should_post_portfolio(now)
             )
+
             # Load and merge positions if needed
             if should_post_portfolio:
-                logger.info("Loading positions at %s", now)
-                # Load positions from all sources
-                for source in self.sources.values():
-                    success, last_report_time = await source.load_positions()
-                    if not success:
-                        logger.error(f"Failed to connect to source {source.source_id}")
-                    if last_report_time is not None:
-                        if now is None or last_report_time > now:
-                            logger.info(
-                                f"Updating now to {last_report_time} after loading positions"
-                            )
-                            now = last_report_time
+                now = await self._load_positions(now)
 
-                # Use TradeService's position merging logic
-                self.position_service.merged_positions = (
-                    await self.position_service.get_merged_positions()
-                )
+            # Get and publish new trades
             new_trades = await self.trade_service.get_new_trades()
             logger.info(f"Loaded {len(new_trades)} trades")
 
             if should_post_portfolio and now is not None:
-                last_trade_timestamp = (
-                    max(trade.timestamp for trade in new_trades) - timedelta(seconds=1)
-                    if new_trades
-                    else now
-                )
-
-                logger.info(f"  Last trade timestamp: {last_trade_timestamp}")
-
-                # Remove any portfolio published with a greater timestamp
-                await self.db.remove_future_portfolio_messages(last_trade_timestamp)
-                logger.info("Flushing trades before reloading positions.")
-                await self.trade_service.publish_trades_svc([], now)
-                logger.info("Flushed trades.")
-                await self.position_service.publish_portfolio_svc(
-                    self.position_service.merged_positions, last_trade_timestamp, now
-                )
-                for sink in self.position_service.sinks.values():
-                    sink.update_portfolio(self.position_service.merged_positions)
+                await self._publish_portfolio(new_trades, now)
 
             if now is not None:
                 logger.info(f"Publishing {len(new_trades)} trades.")
@@ -170,9 +132,7 @@ class TradePublisher:
                 logger.warning("No trades to published, as 'now' is not set")
 
             # Check if all sources are done
-            for source in self.sources.values():
-                all_sources_done = all_sources_done or source.is_done()
-                max_sleep = max(max_sleep, source.get_sleep_time())
+            all_sources_done, max_sleep = self._check_sources_status()
 
             if all_sources_done or not self.sources:
                 logger.info("All sources are done, exiting")
@@ -181,8 +141,77 @@ class TradePublisher:
             logger.info(f"Sleeping for {max_sleep} seconds")
             await asyncio.sleep(max_sleep)
 
+    async def _load_trades(self) -> datetime | None:
+        """Load trades from all sources and return the latest timestamp"""
+        now = None
+
+        for source in self.sources.values():
+            success, last_report_time = await source.load_last_day_trades()
+            logger.info(f"Loaded {last_report_time} trades for {source.source_id}")
+            if not success:
+                logger.error(f"Failed to load trades for source {source.source_id}")
+                continue
+
+            if last_report_time is not None:
+                if now is None or last_report_time > now:
+                    now = last_report_time - timedelta(seconds=1)
+                    logger.info(f"Updating now to {now} after loading trades")
+
+        return now
+
+    async def _load_positions(self, now: datetime | None) -> datetime | None:
+        """Load positions from all sources and return the updated timestamp"""
+        logger.info(f"Loading positions at {now}")
+
+        for source in self.sources.values():
+            success, last_report_time = await source.load_positions()
+            if not success:
+                logger.error(f"Failed to connect to source {source.source_id}")
+            if last_report_time is not None:
+                if now is None or last_report_time > now:
+                    logger.info(f"Updating now to {last_report_time} after loading positions")
+                    now = last_report_time
+
+        # Use TradeService's position merging logic
+        self.position_service.merged_positions = await self.position_service.get_merged_positions()
+
+        return now
+
+    async def _publish_portfolio(self, new_trades: list, now: datetime) -> None:
+        """Publish portfolio information"""
+        if new_trades:
+            last_trade_time = max(trade.timestamp for trade in new_trades)
+            last_trade_timestamp = last_trade_time - timedelta(seconds=1)
+        else:
+            last_trade_timestamp = now
+
+        logger.info(f"  Last trade timestamp: {last_trade_timestamp}")
+
+        # Remove any portfolio published with a greater timestamp
+        await self.db.remove_future_portfolio_messages(last_trade_timestamp)
+        logger.info("Flushing trades before reloading positions.")
+        await self.trade_service.publish_trades_svc([], now)
+        logger.info("Flushed trades.")
+        await self.position_service.publish_portfolio_svc(
+            self.position_service.merged_positions, last_trade_timestamp, now
+        )
+        for sink in self.position_service.sinks.values():
+            sink.update_portfolio(self.position_service.merged_positions)
+
+    def _check_sources_status(self) -> tuple:
+        """Check if all sources are done and determine sleep time"""
+        all_sources_done = False
+        max_sleep = 0
+
+        for source in self.sources.values():
+            all_sources_done = all_sources_done or source.is_done()
+            max_sleep = max(max_sleep, source.get_sleep_time())
+
+        return all_sources_done, max_sleep
+
 
 async def run_web_server():
+    """Run the web server using uvicorn"""
     web_config = get_web_config()
     config = uvicorn.Config(
         app,
@@ -191,11 +220,14 @@ async def run_web_server():
         log_level=web_config["log_level"],
     )
     server = uvicorn.Server(config)
-    logger.info(f"Starting web server on {web_config['host']}:{web_config['port']}")
+    host = web_config["host"]
+    port = web_config["port"]
+    logger.info(f"Starting web server on {host}:{port}")
     await server.serve()
 
 
 async def run_trade_publisher(sources, sinks, db, formatter):
+    """Run the trade publisher process"""
     try:
         publisher = TradePublisher(sources, sinks, db, formatter)
         await publisher.run()
@@ -204,13 +236,16 @@ async def run_trade_publisher(sources, sinks, db, formatter):
 
 
 def start_web_server(db):
+    """Start the web server in a separate thread"""
     init_app(db)
     asyncio.run(run_web_server())
 
 
 async def main():
+    """Main application entry point"""
     logging.basicConfig(level=logging.INFO)
 
+    # Setup components
     sources = create_sources()
     db = await create_db()
     sinks = await create_sinks(db)
@@ -230,21 +265,22 @@ async def main():
     except KeyboardInterrupt:
         logger.info("Shutting down...")
     finally:
-        # Cleanup code here if needed
+        # Cleanup code
         await db.close()
 
 
 if __name__ == "__main__":
+    # Setup logging
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+
     # Load environment variables
     load_dotenv(override=True)
 
     # Build static files before starting the app
-    from build_static import build_static_files
-
     build_static_files()
 
+    # Run the main application
     asyncio.run(main())
